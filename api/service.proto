@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+message ServiceMeta {
+    string service_id = 1;
+    string service_version = 2;
+    string service_openapi_doc = 3;
+}
+
+message GetServiceMetaRequest{}
+
+message GetServiceMetaResponse{
+    uint32 code = 1;
+    uint64 ts_sec = 2;
+    ServiceMeta data = 3;
+}
+
+// service MetaService{
+//     rpc GetServiceMeta(GetServiceMetaRequest) returns (GetServiceMetaResponse);
+// }

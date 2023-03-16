@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+import "service.proto";
+
+message Machine{
+    string uniq_id = 1;
+    string machine_name = 2;
+    string os = 3;
+    repeated string lan_ips = 4;
+    repeated string wan_ips = 5;
+}
+
+message ListMachineResult{
+    uint64 total = 1;
+    repeated Machine machines = 2;
+}
+
+message ListMachineRequest{
+    repeated string lan_ips = 1;
+    repeated string wan_ips = 2;
+}
+
+message ListMachineResponse{
+    uint32 code = 1;
+    uint64 ts_sec = 2;
+    ListMachineResult data = 3;
+}
+
+service ResourceService{
+    rpc GetServiceMeta(GetServiceMetaRequest) returns (GetServiceMetaResponse);
+    rpc ListMachine(ListMachineRequest) returns (ListMachineResponse);
+}
