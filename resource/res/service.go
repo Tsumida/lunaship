@@ -17,7 +17,16 @@ type ResourceService struct {
 func (s *ResourceService) ListMachine(
 	context.Context, *connect.Request[v1.ListMachineRequest],
 ) (*connect.Response[v1.ListMachineResponse], error) {
-	panic("todo")
+	var (
+		resp = &connect.Response[v1.ListMachineResponse]{
+			Msg: &v1.ListMachineResponse{},
+		}
+	)
+
+	resp.Msg.Code = 200
+	resp.Msg.TsSec = utils.NowInSec()
+	resp.Msg.Data = EXAMPLE_LIST_MACHINES
+	return resp, nil
 }
 
 func (s *ResourceService) GetServiceMeta(
