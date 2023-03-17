@@ -2,11 +2,10 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/tsumida/lunaship/utils"
+	"go.uber.org/zap"
 )
 
 func RecoverFn(
@@ -16,10 +15,7 @@ func RecoverFn(
 	recoverValue any,
 ) error {
 
-	now := utils.NowInSec()
-	fmt.Printf(
-		"[%d][%s]panic=%v\n", now, spec.Procedure, recoverValue,
-	)
+	GlobalLog().Warn("request panic", zap.Any("recover", recoverValue))
 	return connect.NewError(
 		connect.CodeInternal, nil,
 	)

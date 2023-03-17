@@ -19,8 +19,8 @@ const address = ":8080"
 
 func main() {
 	_ = server.InitLog(
-		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./log.log"),
-		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./err.log"),
+		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
+		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
 		zapcore.InfoLevel,
 	)
 	defer server.GlobalLog().Sync()
