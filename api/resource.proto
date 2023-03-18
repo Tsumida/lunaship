@@ -1,6 +1,8 @@
 syntax = "proto3";
+package meta;
 
-import "service.proto";
+import "meta.proto";
+
 
 message Machine{
     string uniq_id = 1;
@@ -27,6 +29,6 @@ message ListMachineResponse{
 }
 
 service ResourceService{
-    rpc GetServiceMeta(GetServiceMetaRequest) returns (GetServiceMetaResponse);
+    rpc GetServiceMeta(meta.GetServiceMetaRequest) returns (meta.GetServiceMetaResponse);
     rpc ListMachine(ListMachineRequest) returns (ListMachineResponse);
 }

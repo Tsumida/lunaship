@@ -10,3 +10,5 @@ plugins:
   - plugin: buf.build/bufbuild/connect-go
     out: v1
     opt: paths=source_relative
+  - plugin: buf.build/grpc-ecosystem/openapiv2
+    out: v1/openapiv2

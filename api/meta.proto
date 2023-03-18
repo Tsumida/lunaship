@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package meta;
+
 message ServiceMeta {
     string service_id = 1;
     string service_version = 2;
