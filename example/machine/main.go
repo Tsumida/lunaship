@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/bufbuild/connect-go"
 	svc "github.com/tsumida/lunaship/api/v1/v1connect"
-	"github.com/tsumida/lunaship/resource/res"
-	"github.com/tsumida/lunaship/server"
+	"github.com/tsumida/lunaship/example/machine/res"
+	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -18,21 +20,27 @@ import (
 const address = ":8080"
 
 func main() {
-	_ = server.InitLog(
+	_ = infra.InitLog(
 		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
 		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
 		zapcore.InfoLevel,
 	)
-	defer server.GlobalLog().Sync()
+	defer infra.GlobalLog().Sync()
 
 	path, handler := svc.NewResourceServiceHandler(
 		&res.ResourceService{},
-		connect.WithRecover(server.RecoverFn),
-		connect.WithInterceptors(),
+		connect.WithRecover(infra.RecoverFn),
+		connect.WithInterceptors(
+			infra.NewRpcCounter(),
+			infra.NewReqRespLogger(),
+		),
 	)
+
+	go infra.PrintRpcCounter(context.Background(), 1*time.Minute, 10)
+
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
-	server.GlobalLog().Info(
+	infra.GlobalLog().Info(
 		"server up", zap.String("listen", address),
 	)
 	http.ListenAndServe(

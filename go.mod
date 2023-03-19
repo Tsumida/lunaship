@@ -20,9 +20,12 @@ require (
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
 	github.com/go-openapi/spec v0.20.4 // indirect
 	github.com/go-openapi/swag v0.19.15 // indirect
+	github.com/go-redis/redis v6.15.9+incompatible // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/redis/go-redis v6.15.9+incompatible // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/samber/mo v1.8.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/swaggo/swag v1.8.10 // indirect
 	github.com/urfave/cli/v2 v2.3.0 // indirect

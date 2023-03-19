@@ -1,4 +1,4 @@
-package server
+package infra
 
 import (
 	"io"
@@ -11,7 +11,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// Logging format for server.
+// Logging format for infra.
 // Ref: https://zhuanlan.zhihu.com/p/141321801
 
 var (
