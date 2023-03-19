@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis"
-	"github.com/tsumida/lunaship/utils"
+	"github.com/tsumida/lunaship/infra/utils"
+	"go.uber.org/zap"
 )
 
 type RedisConfig struct {
@@ -34,12 +36,33 @@ func GlobalRedis() *redis.Client {
 	return _global_redis
 }
 
-func InitRedis(ctx context.Context, conf RedisConfig) {
+func InitRedis(ctx context.Context, conf RedisConfig) error {
+	var err error
 	_init_once.Do(func() {
+
+		GlobalLog().Info(
+			"init-redis",
+			zap.Any("redis-config", conf),
+		)
+
 		_global_redis = redis.NewClient(&redis.Options{
 			Addr:     conf.HostPort,
 			Password: conf.Pwd,
 			DB:       int(conf.DB),
 		})
+
+		err = utils.Retry(
+			3, 5*time.Second,
+			func() error {
+				e := _global_redis.Ping().Err()
+				if e != nil {
+					GlobalLog().Warn("ping redis", zap.Error(e))
+				}
+				return e
+			},
+			"init-redis",
+		)
 	})
+
+	return err
 }

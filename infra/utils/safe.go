@@ -16,3 +16,9 @@ func GoWithAction(fn func(), panicAction func(r interface{})) {
 
 	fn()
 }
+
+func PanicIf(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

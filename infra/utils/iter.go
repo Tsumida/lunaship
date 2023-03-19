@@ -1,6 +1,10 @@
 package utils
 
-import "github.com/pkg/errors"
+import (
+	"time"
+
+	"github.com/pkg/errors"
+)
 
 type ChainError struct {
 	FnIndex uint
@@ -27,4 +31,20 @@ func Chain(
 	}
 
 	return nil
+}
+
+func Retry(
+	maxRetry uint,
+	timeWait time.Duration,
+	action func() error,
+	errHint string,
+) error {
+	var err error = action()
+	cnt := uint(0)
+	for err != nil && cnt < maxRetry {
+		time.Sleep(timeWait)
+		err = action()
+		cnt += 1
+	}
+	return errors.WithMessagef(err, "exceed max-retry %d for %s", maxRetry, errHint)
 }

@@ -1,7 +1,14 @@
+#!/bin/bash
+set -euo pipefail
 
-export MYSQL_HOST=
-export MYSQL_PORT=
-export MYSQL_DB=
-export MYSQL_USER=
-export MYSQL_PWD=
-export MYSQL_MAX_CONN=
+REDIS_CONF_DIR="/home/tsumida/code/github/lunaship/tmp/redis"
+REDIS_NAME="redis-dev"
+REDIS_IMG="redis:6.0"
+
+docker run \
+    -d \
+    -p 16379:6379 \
+    -v $REDIS_CONF_DIR:/usr/local/etc/redis \
+    --name $REDIS_NAME \
+    $REDIS_IMG \
+    redis-server /usr/local/etc/redis/redis.conf

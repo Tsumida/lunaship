@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/tsumida/lunaship/utils"
+	"github.com/tsumida/lunaship/infra/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/tsumida/lunaship/utils"
+	"github.com/tsumida/lunaship/infra/utils"
 )
 
 type MySQLConfig struct {

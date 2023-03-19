@@ -8,7 +8,7 @@ import (
 
 	"github.com/bufbuild/connect-go"
 	"github.com/samber/lo"
-	"github.com/tsumida/lunaship/utils"
+	"github.com/tsumida/lunaship/infra/utils"
 	"go.uber.org/zap"
 )
 
@@ -95,7 +95,7 @@ func PrintRpcCounter(ctx context.Context, interval time.Duration, topk uint) {
 	}
 }
 
-func NewRpcCounter() connect.UnaryInterceptorFunc {
+func NewLocalRpcCounter() connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
 		return connect.UnaryFunc(func(
 			ctx context.Context,
@@ -108,6 +108,35 @@ func NewRpcCounter() connect.UnaryInterceptorFunc {
 			}
 
 			RPC_COUNTER.Store(key, val)
+
+			return next(ctx, req)
+		})
+	}
+	return connect.UnaryInterceptorFunc(interceptor)
+}
+
+var (
+	KEY_RPC_COUNTER = "rpc_counter"
+)
+
+func NewRedisRpcCounter() connect.UnaryInterceptorFunc {
+	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
+		return connect.UnaryFunc(func(
+			ctx context.Context,
+			req connect.AnyRequest,
+		) (connect.AnyResponse, error) {
+			url := req.Spec().Procedure
+			go utils.Go(func() {
+				client := GlobalRedis()
+				res := client.HIncrBy(KEY_RPC_COUNTER, url, 1)
+				if err := res.Err(); err != nil {
+					GlobalLog().Error(
+						KEY_RPC_COUNTER,
+						zap.String("url", url),
+						zap.Error(err),
+					)
+				}
+			})
 
 			return next(ctx, req)
 		})

@@ -7,7 +7,7 @@ import (
 	"github.com/bufbuild/connect-go"
 	v1 "github.com/tsumida/lunaship/api/v1"
 	svc "github.com/tsumida/lunaship/api/v1/v1connect"
-	"github.com/tsumida/lunaship/utils"
+	"github.com/tsumida/lunaship/infra/utils"
 )
 
 type ResourceService struct {
