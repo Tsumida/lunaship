@@ -2,11 +2,17 @@ package infra
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/go-redis/redis_rate"
 	"github.com/samber/lo"
 	"github.com/tsumida/lunaship/infra/utils"
 	"go.uber.org/zap"
@@ -137,6 +143,39 @@ func NewRedisRpcCounter() connect.UnaryInterceptorFunc {
 					)
 				}
 			})
+
+			return next(ctx, req)
+		})
+	}
+	return connect.UnaryInterceptorFunc(interceptor)
+}
+
+func loadQPSFromEnv(defaultQPS int) int {
+	if v, err := strconv.Atoi(os.Getenv("LIMIT_Q_PER_MINUTE")); err == nil && v > 0 {
+		return v
+	}
+	return defaultQPS
+}
+
+func NewRateLimiter() connect.UnaryInterceptorFunc {
+	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
+		return connect.UnaryFunc(func(
+			ctx context.Context,
+			req connect.AnyRequest,
+		) (connect.AnyResponse, error) {
+			url := req.Spec().Procedure
+			peer := strings.Split(req.Peer().Addr, ":")[0]
+			field := fmt.Sprintf("%s#%s", peer, url)
+
+			_, _, allowed := redis_rate.
+				NewLimiter(GlobalRedis()).
+				Allow(field, int64(loadQPSFromEnv(10)), 1*time.Minute)
+			if !allowed {
+				return nil, connect.NewError(
+					connect.CodeResourceExhausted,
+					errors.New("rate-limited"),
+				)
+			}
 
 			return next(ctx, req)
 		})

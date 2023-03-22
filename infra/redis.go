@@ -40,19 +40,14 @@ func InitRedis(ctx context.Context, conf RedisConfig) error {
 	var err error
 	_init_once.Do(func() {
 
-		GlobalLog().Info(
-			"init-redis",
-			zap.Any("redis-config", conf),
-		)
-
+		GlobalLog().Info("init-redis", zap.Any("redis-config", conf))
 		_global_redis = redis.NewClient(&redis.Options{
 			Addr:     conf.HostPort,
 			Password: conf.Pwd,
 			DB:       int(conf.DB),
 		})
 
-		err = utils.Retry(
-			3, 5*time.Second,
+		err = utils.Retry(3, 5*time.Second,
 			func() error {
 				e := _global_redis.Ping().Err()
 				if e != nil {

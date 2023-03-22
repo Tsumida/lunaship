@@ -49,6 +49,9 @@ func TestResourceListMachine(t *testing.T) {
 	)
 	t.Log(string(buf))
 
+	if resp == nil || resp.Msg == nil || resp.Msg.Data == nil {
+		t.FailNow()
+	}
 	machineCnt := resp.Msg.Data.Total
 	assert.Equalf(t, uint64(2), machineCnt, "incorrect machine count")
 }
