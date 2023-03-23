@@ -40,7 +40,10 @@ type Service struct {
 	BindingAddress string
 }
 
-func (s *Service) Run(ctx context.Context) {
+func (s *Service) Run(
+	ctx context.Context,
+	shutdownDur time.Duration,
+) {
 	_ = InitLog(
 		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
 		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
@@ -53,8 +56,6 @@ func (s *Service) Run(ctx context.Context) {
 	)
 	defer GlobalRedis().Close()
 
-	go PrintRpcCounter(ctx, 1*time.Minute, 10)
-
 	defer GlobalLog().Info("server done")
 
 	mux := http.NewServeMux()
@@ -62,8 +63,32 @@ func (s *Service) Run(ctx context.Context) {
 	GlobalLog().Info(
 		"server up", zap.String("listen", s.BindingAddress),
 	)
-	http.ListenAndServe(
-		s.BindingAddress,
-		h2c.NewHandler(mux, &http2.Server{}),
+
+	server := &http.Server{
+		Addr:    s.BindingAddress,
+		Handler: h2c.NewHandler(mux, &http2.Server{}),
+	}
+
+	go utils.Go(func() {
+		if err := server.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				GlobalLog().Error("server down", zap.Error(err))
+			} else {
+				GlobalLog().Info("server graceful shutdown")
+			}
+		}
+	})
+
+	<-ctx.Done()
+	GlobalLog().Info(
+		"shutting down server",
+		zap.Float64("waiting_sec", shutdownDur.Seconds()),
 	)
+
+	sctx, cancel := context.WithTimeout(context.Background(), shutdownDur)
+	defer cancel()
+
+	if err := server.Shutdown(sctx); err != nil {
+		GlobalLog().Error("failed to shutdown", zap.Error(err))
+	}
 }

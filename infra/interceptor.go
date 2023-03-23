@@ -157,28 +157,34 @@ func loadQPSFromEnv(defaultQPS int) int {
 	return defaultQPS
 }
 
-func NewRateLimiter() connect.UnaryInterceptorFunc {
-	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
-		return connect.UnaryFunc(func(
-			ctx context.Context,
-			req connect.AnyRequest,
-		) (connect.AnyResponse, error) {
-			url := req.Spec().Procedure
-			peer := strings.Split(req.Peer().Addr, ":")[0]
-			field := fmt.Sprintf("%s#%s", peer, url)
+func NewRateLimiter(
+	QpsLimit uint64,
+	Dur time.Duration,
+) func() connect.UnaryInterceptorFunc {
 
-			_, _, allowed := redis_rate.
-				NewLimiter(GlobalRedis()).
-				Allow(field, int64(loadQPSFromEnv(10)), 1*time.Minute)
-			if !allowed {
-				return nil, connect.NewError(
-					connect.CodeResourceExhausted,
-					errors.New("rate-limited"),
-				)
-			}
+	return func() connect.UnaryInterceptorFunc {
+		interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
+			return connect.UnaryFunc(func(
+				ctx context.Context,
+				req connect.AnyRequest,
+			) (connect.AnyResponse, error) {
+				url := req.Spec().Procedure
+				peer := strings.Split(req.Peer().Addr, ":")[0]
+				field := fmt.Sprintf("%s#%s", peer, url)
 
-			return next(ctx, req)
-		})
+				_, _, allowed := redis_rate.
+					NewLimiter(GlobalRedis()).
+					Allow(field, int64(QpsLimit), Dur)
+				if !allowed {
+					return nil, connect.NewError(
+						connect.CodeResourceExhausted,
+						errors.New("rate-limited"),
+					)
+				}
+
+				return next(ctx, req)
+			})
+		}
+		return connect.UnaryInterceptorFunc(interceptor)
 	}
-	return connect.UnaryInterceptorFunc(interceptor)
 }
