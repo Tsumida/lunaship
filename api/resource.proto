@@ -7,9 +7,10 @@ import "meta.proto";
 message Machine{
     string uniq_id = 1;
     string machine_name = 2;
-    string os = 3;
-    repeated string lan_ips = 4;
-    repeated string wan_ips = 5;
+    ObjectMeta meta = 3;
+    string os = 4;
+    repeated string lan_ips = 5;
+    repeated string wan_ips = 6;
 }
 
 message ListMachineResult{

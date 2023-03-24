@@ -16,6 +16,20 @@ message GetServiceMetaResponse{
     ServiceMeta data = 3;
 }
 
+message ObjectMeta {
+    int32 Version = 1;
+    enum ObjectState{
+        Unknown = 0;
+        Valid = 1;
+        Deleted = 2;
+        Expired = 3; 
+    }
+
+    ObjectState state = 2;
+    int64 LastUpdateTime = 3;
+    int64 CreateTime = 4;
+}
+
 // service MetaService{
 //     rpc GetServiceMeta(GetServiceMetaRequest) returns (GetServiceMetaResponse);
 // }

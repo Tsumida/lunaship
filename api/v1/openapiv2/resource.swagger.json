@@ -17,6 +17,16 @@
   ],
   "paths": {},
   "definitions": {
+    "ObjectMetaObjectState": {
+      "type": "string",
+      "enum": [
+        "Unknown",
+        "Valid",
+        "Deleted",
+        "Expired"
+      ],
+      "default": "Unknown"
+    },
     "metaGetServiceMetaResponse": {
       "type": "object",
       "properties": {
@@ -74,6 +84,9 @@
         "machineName": {
           "type": "string"
         },
+        "meta": {
+          "$ref": "#/definitions/metaObjectMeta"
+        },
         "os": {
           "type": "string"
         },
@@ -88,6 +101,26 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "metaObjectMeta": {
+      "type": "object",
+      "properties": {
+        "Version": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "state": {
+          "$ref": "#/definitions/ObjectMetaObjectState"
+        },
+        "LastUpdateTime": {
+          "type": "string",
+          "format": "int64"
+        },
+        "CreateTime": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },

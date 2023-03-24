@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"context"
 	"os"
 	"strconv"
 
@@ -27,5 +28,15 @@ func (c *MySQLConfig) LoadFromEnv() error {
 		c.MaxConnectCnt = uint(maxConnectCnt)
 	}
 
+	if c.MaxConnectCnt == 0 {
+		c.MaxConnectCnt = 100
+	} else if c.MaxConnectCnt > 1000 {
+		c.MaxConnectCnt = 500
+	}
+
 	return nil
+}
+
+func InitMySQL(ctx context.Context, conf MySQLConfig) error {
+	panic("todo")
 }
