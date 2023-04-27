@@ -92,3 +92,57 @@ func (s *Service) Run(
 		GlobalLog().Error("failed to shutdown", zap.Error(err))
 	}
 }
+
+func (s *Service) RunAfterInit(
+	ctx context.Context,
+	shutdownDur time.Duration,
+	initFnList ...func() error,
+) {
+	_ = InitLog(
+		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
+		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
+		zapcore.InfoLevel,
+	)
+	defer GlobalLog().Sync()
+	defer GlobalLog().Info("server done")
+
+	for _, initFn := range initFnList {
+		if err := initFn(); err != nil {
+			panic(err)
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle(s.Path, s.Handler)
+	GlobalLog().Info(
+		"server up", zap.String("listen", s.BindingAddress),
+	)
+
+	server := &http.Server{
+		Addr:    s.BindingAddress,
+		Handler: h2c.NewHandler(mux, &http2.Server{}),
+	}
+
+	go utils.Go(func() {
+		if err := server.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				GlobalLog().Error("server down", zap.Error(err))
+			} else {
+				GlobalLog().Info("server graceful shutdown")
+			}
+		}
+	})
+
+	<-ctx.Done()
+	GlobalLog().Info(
+		"shutting down server",
+		zap.Float64("waiting_sec", shutdownDur.Seconds()),
+	)
+
+	sctx, cancel := context.WithTimeout(context.Background(), shutdownDur)
+	defer cancel()
+
+	if err := server.Shutdown(sctx); err != nil {
+		GlobalLog().Error("failed to shutdown", zap.Error(err))
+	}
+}
