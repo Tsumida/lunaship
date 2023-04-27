@@ -19,33 +19,33 @@ type RedisConfig struct {
 	DB uint
 }
 
-func LoadRedisConfigFromEnv() RedisConfig {
-	return RedisConfig{
-		HostPort: utils.StrOrDefault(os.Getenv("REDIS_ADDR"), "127.0.0.1:6379"),
-		Pwd:      utils.StrOrDefault(os.Getenv("REDIS_PWD"), ""),
+func LoadRedisConfigFromEnv() *redis.UniversalOptions {
+	return &redis.UniversalOptions{
+		Addrs: []string{
+			utils.StrOrDefault(os.Getenv("REDIS_ADDR"), "127.0.0.1:6379"),
+		},
+		Password: utils.StrOrDefault(os.Getenv("REDIS_PWD"), ""),
 		DB:       0,
 	}
 }
 
 var (
-	_global_redis *redis.Client = nil
-	_init_once                  = sync.Once{}
+	_global_redis redis.UniversalClient = nil
+	_init_once                          = sync.Once{}
 )
 
-func GlobalRedis() *redis.Client {
+func GlobalRedis() redis.UniversalClient {
 	return _global_redis
 }
 
-func InitRedis(ctx context.Context, conf RedisConfig) error {
+func InitRedis(ctx context.Context, conf *redis.UniversalOptions) error {
 	var err error
 	_init_once.Do(func() {
 
-		GlobalLog().Info("init-redis", zap.Any("redis-config", conf))
-		_global_redis = redis.NewClient(&redis.Options{
-			Addr:     conf.HostPort,
-			Password: conf.Pwd,
-			DB:       int(conf.DB),
-		})
+		// GlobalLog().Info("init-redis", zap.Any("redis-config", conf))
+		_global_redis = redis.NewUniversalClient(
+			conf,
+		)
 
 		err = utils.Retry(3, 5*time.Second,
 			func() error {
