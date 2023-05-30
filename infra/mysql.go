@@ -1,42 +1,83 @@
 package infra
 
 import (
-	"context"
+	"fmt"
 	"os"
-	"strconv"
+	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/tsumida/lunaship/infra/utils"
+	"go.uber.org/zap"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-type MySQLConfig struct {
-	Host          string
-	Port          string
-	Database      string
-	User          string
-	Pwd           string
-	MaxConnectCnt uint
+var (
+	_global_mysql *gorm.DB = nil
+	_init_mysql            = sync.Once{}
+)
+
+func GlobalMySQL() *gorm.DB {
+	return _global_mysql
 }
 
-func (c *MySQLConfig) LoadFromEnv() error {
-	c.Host = utils.StrOrDefault(os.Getenv("MYSQL_HOST"), "localhost")
-	c.Port = utils.StrOrDefault(os.Getenv("MYSQL_PORT"), "3306")
-	c.Database = utils.StrOrDefault(os.Getenv("MYSQL_DB"), "")
-	c.User = utils.StrOrDefault(os.Getenv("MYSQL_USER"), "root")
-	c.Pwd = utils.StrOrDefault(os.Getenv("MYSQL_PORT"), "123456")
+func LoadMySQLConfFromEnv(debug bool) mysql.Config {
+	var (
+		usr    = utils.StrOrDefault(os.Getenv("MYSQL_USER"), "root")
+		pwd    = utils.StrOrDefault(os.Getenv("MYSQL_PASSWORD"), "helloworld")
+		host   = utils.StrOrDefault(os.Getenv("MYSQL_HOST"), "192.168.0.120")
+		port   = utils.StrOrDefault(os.Getenv("MYSQL_PORT"), "3306")
+		dbName = utils.StrOrDefault(os.Getenv("MYSQL_DATABASE"), "metaserver")
+	)
 
-	if maxConnectCnt, err := strconv.Atoi(os.Getenv("MYSQL_MAX_CONN")); err == nil {
-		c.MaxConnectCnt = uint(maxConnectCnt)
+	dsn := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		usr, pwd, host, port, dbName,
+	)
+	if debug {
+		GlobalLog().Info("mysql conf read", zap.String("dsn", dsn))
 	}
-
-	if c.MaxConnectCnt == 0 {
-		c.MaxConnectCnt = 100
-	} else if c.MaxConnectCnt > 1000 {
-		c.MaxConnectCnt = 500
+	return mysql.Config{
+		DSN: dsn,
 	}
-
-	return nil
 }
 
-func InitMySQL(ctx context.Context, conf MySQLConfig) error {
-	panic("todo")
+func InitMySQL(
+	conf mysql.Config,
+	gormConf gorm.Config,
+	migrateFunc func(db *gorm.DB) error,
+) (err error) {
+	_init_mysql.Do(func() {
+
+		db, e := gorm.Open(
+			mysql.New(conf),
+			&gormConf,
+		)
+		if e != nil {
+			err = e
+			return
+		}
+		if db == nil {
+			err = fmt.Errorf("mysql init failed")
+			return
+		}
+		_global_mysql = db
+
+		sqlDB, e := db.DB()
+		if e != nil {
+			err = errors.WithMessage(e, "config db")
+			return
+		}
+
+		sqlDB.SetMaxIdleConns(100)
+		sqlDB.SetMaxOpenConns(200)
+
+		if e := migrateFunc(_global_mysql); e != nil {
+			err = e
+		}
+
+		GlobalLog().Info("mysql connected")
+	})
+
+	return err
 }
