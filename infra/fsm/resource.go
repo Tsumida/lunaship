@@ -9,8 +9,8 @@ import (
 type Resource interface {
 	// Global ID
 	ID() string
-	ResourceType() mo.Option[string]
-	ToByte() mo.Result[[]byte]
+	ResourceType() string
+	ToByte() []byte
 	FromByte([]byte) mo.Result[Resource]
 }
 

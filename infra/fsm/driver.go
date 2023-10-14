@@ -11,6 +11,7 @@ type Event interface {
 	EventSource() string
 	EventReceiver() string
 	EventType() string
+	EventDesc() string
 	Body() []byte
 }
 
