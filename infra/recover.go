@@ -15,7 +15,12 @@ func RecoverFn(
 	recoverValue any,
 ) error {
 
-	GlobalLog().Warn("request panic", zap.Any("recover", recoverValue))
+	GlobalLog().Error(
+		"request panic",
+		zap.String("target", spec.Procedure),
+		zap.Any("recover", recoverValue),
+		zap.Stack("stack"),
+	)
 	return connect.NewError(
 		connect.CodeInternal, nil,
 	)

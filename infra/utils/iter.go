@@ -48,3 +48,16 @@ func Retry(
 	}
 	return errors.WithMessagef(err, "exceed max-retry %d for %s", maxRetry, errHint)
 }
+
+// ChainWithoutWrapper Return error instead of a wrapper.
+func ChainWithoutWrapper(
+	fnList ...func() error,
+) error {
+	for _, fn := range fnList {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
