@@ -38,6 +38,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-redis/redis_rate v6.5.0+incompatible
+	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/samber/lo v1.37.0
 	github.com/stretchr/testify v1.8.2

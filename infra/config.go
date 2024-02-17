@@ -45,8 +45,8 @@ func (s *Service) Run(
 	shutdownDur time.Duration,
 ) {
 	_ = InitLog(
-		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
-		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
+		utils.StrOrDefault(os.Getenv("LOG_FILE"), "stdout"),
+		utils.StrOrDefault(os.Getenv("ERR_FILE"), "stdout"),
 		zapcore.InfoLevel,
 	)
 	defer GlobalLog().Sync()

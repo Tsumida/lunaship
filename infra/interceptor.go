@@ -24,20 +24,19 @@ func NewReqRespLogger() connect.UnaryInterceptorFunc {
 		) (connect.AnyResponse, error) {
 
 			var (
-				resp   connect.AnyResponse
-				err    error
+				resp connect.AnyResponse
+				err  error
+
+				start  = utils.NowInMs()
 				fields = []zap.Field{
 					zap.String("peer", req.Peer().Addr),
 					zap.String("protocol", req.Peer().Protocol),
 					zap.String("target", req.Spec().Procedure),
 					zap.Any("parameters", req.Any()),
+					zap.Uint64("start_ms", start),
 				}
 			)
-			GlobalLog().Info(
-				"request",
-				fields...,
-			)
-			start := utils.NowInMs()
+			GlobalLog().Info("request", fields...)
 
 			defer func() {
 				durInMs := utils.NowInMs() - start
