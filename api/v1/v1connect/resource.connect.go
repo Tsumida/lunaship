@@ -25,6 +25,22 @@ const (
 	ResourceServiceName = "meta.ResourceService"
 )
 
+// These constants are the fully-qualified names of the RPCs defined in this package. They're
+// exposed at runtime as Spec.Procedure and as the final two segments of the HTTP route.
+//
+// Note that these are different from the fully-qualified method names used by
+// google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
+// reflection-formatted method names, remove the leading slash and convert the remaining slash to a
+// period.
+const (
+	// ResourceServiceGetServiceMetaProcedure is the fully-qualified name of the ResourceService's
+	// GetServiceMeta RPC.
+	ResourceServiceGetServiceMetaProcedure = "/meta.ResourceService/GetServiceMeta"
+	// ResourceServiceListMachineProcedure is the fully-qualified name of the ResourceService's
+	// ListMachine RPC.
+	ResourceServiceListMachineProcedure = "/meta.ResourceService/ListMachine"
+)
+
 // ResourceServiceClient is a client for the meta.ResourceService service.
 type ResourceServiceClient interface {
 	GetServiceMeta(context.Context, *connect_go.Request[v1.GetServiceMetaRequest]) (*connect_go.Response[v1.GetServiceMetaResponse], error)
@@ -43,12 +59,12 @@ func NewResourceServiceClient(httpClient connect_go.HTTPClient, baseURL string, 
 	return &resourceServiceClient{
 		getServiceMeta: connect_go.NewClient[v1.GetServiceMetaRequest, v1.GetServiceMetaResponse](
 			httpClient,
-			baseURL+"/meta.ResourceService/GetServiceMeta",
+			baseURL+ResourceServiceGetServiceMetaProcedure,
 			opts...,
 		),
 		listMachine: connect_go.NewClient[v1.ListMachineRequest, v1.ListMachineResponse](
 			httpClient,
-			baseURL+"/meta.ResourceService/ListMachine",
+			baseURL+ResourceServiceListMachineProcedure,
 			opts...,
 		),
 	}
@@ -82,18 +98,26 @@ type ResourceServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewResourceServiceHandler(svc ResourceServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	mux := http.NewServeMux()
-	mux.Handle("/meta.ResourceService/GetServiceMeta", connect_go.NewUnaryHandler(
-		"/meta.ResourceService/GetServiceMeta",
+	resourceServiceGetServiceMetaHandler := connect_go.NewUnaryHandler(
+		ResourceServiceGetServiceMetaProcedure,
 		svc.GetServiceMeta,
 		opts...,
-	))
-	mux.Handle("/meta.ResourceService/ListMachine", connect_go.NewUnaryHandler(
-		"/meta.ResourceService/ListMachine",
+	)
+	resourceServiceListMachineHandler := connect_go.NewUnaryHandler(
+		ResourceServiceListMachineProcedure,
 		svc.ListMachine,
 		opts...,
-	))
-	return "/meta.ResourceService/", mux
+	)
+	return "/meta.ResourceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case ResourceServiceGetServiceMetaProcedure:
+			resourceServiceGetServiceMetaHandler.ServeHTTP(w, r)
+		case ResourceServiceListMachineProcedure:
+			resourceServiceListMachineHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // UnimplementedResourceServiceHandler returns CodeUnimplemented from all methods.

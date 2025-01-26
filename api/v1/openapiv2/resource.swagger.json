@@ -17,16 +17,6 @@
   ],
   "paths": {},
   "definitions": {
-    "ObjectMetaObjectState": {
-      "type": "string",
-      "enum": [
-        "Unknown",
-        "Valid",
-        "Deleted",
-        "Expired"
-      ],
-      "default": "Unknown"
-    },
     "metaGetServiceMetaResponse": {
       "type": "object",
       "properties": {
@@ -112,7 +102,8 @@
           "format": "int32"
         },
         "state": {
-          "$ref": "#/definitions/ObjectMetaObjectState"
+          "type": "integer",
+          "format": "int64"
         },
         "LastUpdateTime": {
           "type": "string",
