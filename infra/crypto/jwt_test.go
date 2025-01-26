@@ -1,7 +1,8 @@
-package infra
+package crypto
 
 import (
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -10,11 +11,13 @@ import (
 func TestParseToken(t *testing.T) {
 
 	var (
-		secret  = ""
-		payload = map[string]interface{}{
+		expireTs = int64(time.Now().Unix() + 3600)
+		secret   = ""
+		payload  = map[string]interface{}{
 			"sub":  "1234567890",
 			"name": "John Doe",
 			"iat":  int32(1516239022),
+			"exp":  expireTs,
 		}
 	)
 
