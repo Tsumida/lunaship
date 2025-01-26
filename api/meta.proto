@@ -25,7 +25,7 @@ message ObjectMeta {
         Expired = 3; 
     }
 
-    ObjectState state = 2;
+    uint32 state = 2;
     int64 LastUpdateTime = 3;
     int64 CreateTime = 4;
 }

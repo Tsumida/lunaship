@@ -15,7 +15,7 @@ func (ce *ChainError) Error() string {
 	if ce.Err == nil {
 		return ""
 	}
-	return errors.Errorf("index=%d, err=%w", ce.FnIndex, ce.Err.Error()).Error()
+	return errors.Errorf("index=%d, err=%s", ce.FnIndex, ce.Err.Error()).Error()
 }
 
 func Chain(
