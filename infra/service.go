@@ -42,7 +42,7 @@ type Service struct {
 
 func (s *Service) Run(
 	ctx context.Context,
-	shutdownDur time.Duration,
+	gracefulSutdownDur time.Duration,
 ) {
 	_ = InitLog(
 		utils.StrOrDefault(os.Getenv("LOG_FILE"), "stdout"),
@@ -82,10 +82,10 @@ func (s *Service) Run(
 	<-ctx.Done()
 	GlobalLog().Info(
 		"shutting down server",
-		zap.Float64("waiting_sec", shutdownDur.Seconds()),
+		zap.Float64("waiting_sec", gracefulSutdownDur.Seconds()),
 	)
 
-	sctx, cancel := context.WithTimeout(context.Background(), shutdownDur)
+	sctx, cancel := context.WithTimeout(context.Background(), gracefulSutdownDur)
 	defer cancel()
 
 	if err := server.Shutdown(sctx); err != nil {
