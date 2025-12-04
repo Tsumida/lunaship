@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bufbuild/connect-go"
+	"connectrpc.com/connect"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 
