@@ -7,10 +7,11 @@ package v1connect
 import (
 	context "context"
 	errors "errors"
-	connect_go "github.com/bufbuild/connect-go"
-	v1 "github.com/tsumida/lunaship/api/v1"
 	http "net/http"
 	strings "strings"
+
+	connect_go "connectrpc.com/connect"
+	v1 "github.com/tsumida/lunaship/api/v1"
 )
 
 // This is a compile-time assertion to ensure that this generated file and the connect package are

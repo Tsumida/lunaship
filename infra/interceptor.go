@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bufbuild/connect-go"
+	"connectrpc.com/connect"
 	"github.com/go-redis/redis_rate"
 	"github.com/samber/lo"
 	"github.com/tsumida/lunaship/infra/utils"
