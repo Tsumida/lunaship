@@ -1,3 +1,6 @@
+PROJECT_NAME := tex
+PROJECT_ROOT := $(shell pwd)
+REPO_PREFIX := ""
 # ==============================================================================
 # 💾 本地开发
 # ==============================================================================
@@ -16,5 +19,10 @@ list-redis-key:
 pb:
 	@buf generate -v --path ./api
 
-test: 
-	go test -count=1 -v -timeout 60s ./...
+ut:
+	@echo "work_dir=${PROJECT_ROOT}"
+	@mkdir -p ${PROJECT_ROOT}/tmp
+	@touch ${PROJECT_ROOT}/tmp/coverage.out
+	@chmod +x ${PROJECT_ROOT}/tmp/coverage.out 
+	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./infra/...
+	@go tool cover -func=${PROJECT_ROOT}/tmp/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'

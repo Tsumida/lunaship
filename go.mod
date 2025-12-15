@@ -13,7 +13,7 @@ require (
 	github.com/samber/mo v1.8.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/net v0.47.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.9 // indirect
 	gorm.io/driver/mysql v1.5.1
 	gorm.io/gorm v1.31.1
 )
