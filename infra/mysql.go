@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/tsumida/lunaship/infra/utils"
+	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/utils"
+
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -35,7 +37,7 @@ func LoadMySQLConfFromEnv(debug bool) mysql.Config {
 		usr, pwd, host, port, dbName,
 	)
 	if debug {
-		GlobalLog().Info("mysql conf read", zap.String("dsn", dsn))
+		log.GlobalLog().Info("mysql conf read", zap.String("dsn", dsn))
 	}
 	return mysql.Config{
 		DSN: dsn,
@@ -76,7 +78,7 @@ func InitMySQL(
 			err = e
 		}
 
-		GlobalLog().Info("mysql connected")
+		log.GlobalLog().Info("mysql connected")
 	})
 
 	return err

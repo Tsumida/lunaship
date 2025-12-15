@@ -5,7 +5,8 @@ import (
 	"os"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tsumida/lunaship/infra/utils"
+	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/utils"
 	"go.uber.org/zap"
 )
 
@@ -17,9 +18,9 @@ var (
 func InitMetric(
 	promListenAddr string,
 ) {
-	GlobalLog().Info("starting prometheus", zap.String("addr", promListenAddr))
+	log.GlobalLog().Info("starting prometheus", zap.String("addr", promListenAddr))
 	http.Handle("/metrics", promhttp.Handler())
 	if err := http.ListenAndServe(promListenAddr, nil); err != nil {
-		GlobalLog().Error("failed to start prometheus", zap.Error(err))
+		log.GlobalLog().Error("failed to start prometheus", zap.Error(err))
 	}
 }

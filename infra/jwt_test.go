@@ -2,6 +2,7 @@ package infra
 
 import (
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,7 @@ func TestParseToken(t *testing.T) {
 			"sub":  "1234567890",
 			"name": "John Doe",
 			"iat":  int32(1516239022),
+			"exp":  time.Now().Add(1 * time.Hour).Unix(),
 		}
 	)
 

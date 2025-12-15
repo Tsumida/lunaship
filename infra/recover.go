@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+	"github.com/tsumida/lunaship/log"
 	"go.uber.org/zap"
 )
 
@@ -15,7 +16,7 @@ func RecoverFn(
 	recoverValue any,
 ) error {
 
-	GlobalLog().Error(
+	log.GlobalLog().Error(
 		"request panic",
 		zap.String("target", spec.Procedure),
 		zap.Any("recover", recoverValue),
