@@ -1,60 +1,60 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-#######################################
-# Config
-#######################################
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.ci.yml}"
 PROJECT_NAME="ci-itest"
 WAIT_TIMEOUT=30
+SERVICE_NAME="redis"
 
-#######################################
-# Utils
-#######################################
 log() {
   echo "[$(date '+%H:%M:%S')] $*"
 }
 
 cleanup() {
   log "Cleaning up docker compose"
+  # 使用 -v 确保移除匿名卷，--remove-orphans 确保清理所有未跟踪的容器
   docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" down -v --remove-orphans
 }
 
+# 确保在脚本退出、中断或终止时执行清理
 trap cleanup EXIT INT TERM
 
-#######################################
-# Start services
-#######################################
+# 启动
 log "Starting docker compose services"
 docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" up -d --quiet-pull
 
+# 列出服务状态，便于调试
 docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" ps
 
-#######################################
-# Wait for healthy
-#######################################
 log "Waiting for services to be healthy"
+
+# 获取容器ID
+REDIS_CONTAINER_ID=$(docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" ps -q "$SERVICE_NAME")
+
+if [ -z "$REDIS_CONTAINER_ID" ]; then
+    log "Error: Container ID for service '$SERVICE_NAME' not found."
+    exit 1
+fi
 
 start_ts=$(date +%s)
 while true; do
-  unhealthy=$(
-    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" ps \
-      --format json | jq -r '.[] | select(.Health!="healthy") | .Name'
-  )
+    # 检查 Redis 容器的健康状态
+    HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$REDIS_CONTAINER_ID" 2>/dev/null || echo "not running")
 
-  if [[ -z "$unhealthy" ]]; then
-    log "All services are healthy"
-    break
-  fi
+    if [[ "$HEALTH_STATUS" == "healthy" ]]; then
+        log "Service '$SERVICE_NAME' is healthy."
+        break
+    fi
+    
+    log "Current status of $SERVICE_NAME: $HEALTH_STATUS"
 
-  if (( $(date +%s) - start_ts > WAIT_TIMEOUT )); then
-    log "Timeout waiting for services:"
-    echo "$unhealthy"
-    docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" logs
-    exit 1
-  fi
+    if (( $(date +%s) - start_ts > WAIT_TIMEOUT )); then
+        log "Timeout waiting for service '$SERVICE_NAME' to become healthy."
+        docker logs "$REDIS_CONTAINER_ID"
+        exit 1
+    fi
 
-  sleep 1
+    sleep 1
 done
 
 #######################################
