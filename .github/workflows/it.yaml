@@ -3,7 +3,11 @@ name: integration-test
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: 
+      - main
+      - 'fix/*'
+      - 'feature/*'
+
 
 jobs:
   integration-test:
