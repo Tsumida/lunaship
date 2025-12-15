@@ -61,6 +61,6 @@ done
 # Run tests
 #######################################
 log "Running Go integration tests"
-go test -v -count=1 -gcflags=all=-l ./tests/...
+go test -v -count=1 -gcflags=all=-l ./...
 
 log "Integration tests finished successfully"
