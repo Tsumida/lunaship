@@ -24,5 +24,5 @@ ut:
 	@mkdir -p ${PROJECT_ROOT}/tmp
 	@touch ${PROJECT_ROOT}/tmp/coverage.out
 	@chmod +x ${PROJECT_ROOT}/tmp/coverage.out 
-	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./infra/...
+	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./...
 	@go tool cover -func=${PROJECT_ROOT}/tmp/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'

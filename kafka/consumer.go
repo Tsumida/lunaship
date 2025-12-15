@@ -1,9 +1,9 @@
-package infra
+package kafka
 
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/IBM/sarama"
+	"github.com/tsumida/lunaship/log"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,7 @@ func (c *KafkaConsumer) Start(
 	consumer *ConsumerWrapper,
 ) error {
 	keepRunning := true
-	l := GlobalLog().With(
+	l := log.GlobalLog().With(
 		zap.String("brokers", c.Brokers), zap.String("consumer_group", c.ConsumerGroup), zap.String("topic", c.Topic),
 	)
 	ctx, cancel := context.WithCancel(cctx)
@@ -63,7 +64,7 @@ func (c *KafkaConsumer) Start(
 				if errors.Is(err, sarama.ErrClosedConsumerGroup) {
 					return
 				}
-				log.Panicf("Error from consumer: %v", err)
+				panic(fmt.Sprintf("Error from consumer: %v", err))
 			}
 			// check if context was cancelled, signaling that the consumer should stop
 			if ctx.Err() != nil {
@@ -74,7 +75,7 @@ func (c *KafkaConsumer) Start(
 	}()
 
 	<-consumer.ready // Await till the consumer has been set up
-	log.Println("Sarama consumer up and running!...")
+	l.Debug("Sarama consumer up and running!...")
 
 	// note: SIGUSR1, SIGUSR2用来开启pprof
 	// sigusr1 := make(chan os.Signal, 1)
@@ -122,7 +123,7 @@ func (consumer *ConsumerWrapper) Cleanup(sarama.ConsumerGroupSession) error {
 // Once the Messages() channel is closed, the Handler must finish its processing
 // loop and exit.
 func (consumer *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	l := GlobalLog()
+	l := log.GlobalLog().With(zap.String("consumer_name", consumer.name))
 	// todo: use sync.Pool
 	logTags := make([]zap.Field, 0, 12)
 

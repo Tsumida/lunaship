@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/tsumida/lunaship/infra/utils"
+	"github.com/tsumida/lunaship/utils"
 )
 
 var DEFAULT_PPROF_ADDR = ":6060"

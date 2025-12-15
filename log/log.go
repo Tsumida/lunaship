@@ -1,11 +1,10 @@
-package infra
+package log
 
 import (
 	"io"
 	"os"
 	"time"
 
-	"github.com/tsumida/lunaship/infra/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -34,7 +33,7 @@ func getWriter(filename string) io.Writer {
 }
 
 // 初始化日志 logger
-func InitLog(logPath, errPath string, logLevel zapcore.Level) *zap.Logger {
+func InitLog(logPath, errPath string, logLevel zapcore.Level, isDev bool) *zap.Logger {
 	config := zapcore.EncoderConfig{
 		MessageKey:   "msg",                       //结构化（json）输出：msg的key
 		LevelKey:     "level",                     //结构化（json）输出：日志级别的key（INFO，WARN，ERROR等）
@@ -68,7 +67,7 @@ func InitLog(logPath, errPath string, logLevel zapcore.Level) *zap.Logger {
 		zapcore.NewCore(zapcore.NewConsoleEncoder(config), zapcore.AddSync(warnWriter), warnLevel), //warn及以上写入errPath
 	}
 
-	if utils.StrOrDefault(os.Getenv("DEPLOY_ENV"), ENV_DEV) == ENV_DEV {
+	if isDev {
 		outputList = append(
 			outputList,
 			//同时将日志输出到控制台，NewJSONEncoder 是结构化输出
