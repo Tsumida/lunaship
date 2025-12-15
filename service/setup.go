@@ -50,7 +50,6 @@ func (s *Service) RunAfterInit(
 		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
 		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
 		zapcore.InfoLevel,
-		false,
 	)
 	defer func() {
 		_ = log.GlobalLog().Sync()

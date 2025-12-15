@@ -33,7 +33,7 @@ func getWriter(filename string) io.Writer {
 }
 
 // 初始化日志 logger
-func InitLog(logPath, errPath string, logLevel zapcore.Level, isDev bool) *zap.Logger {
+func InitLog(logPath, errPath string, logLevel zapcore.Level) *zap.Logger {
 	config := zapcore.EncoderConfig{
 		MessageKey:   "msg",                       //结构化（json）输出：msg的key
 		LevelKey:     "level",                     //结构化（json）输出：日志级别的key（INFO，WARN，ERROR等）
@@ -65,17 +65,11 @@ func InitLog(logPath, errPath string, logLevel zapcore.Level, isDev bool) *zap.L
 	outputList := []zapcore.Core{
 		zapcore.NewCore(zapcore.NewConsoleEncoder(config), zapcore.AddSync(infoWriter), infoLevel), //将info及以下写入logPath，NewConsoleEncoder 是非结构化输出
 		zapcore.NewCore(zapcore.NewConsoleEncoder(config), zapcore.AddSync(warnWriter), warnLevel), //warn及以上写入errPath
-	}
-
-	if isDev {
-		outputList = append(
-			outputList,
-			//同时将日志输出到控制台，NewJSONEncoder 是结构化输出
-			zapcore.NewCore(
-				zapcore.NewJSONEncoder(config),
-				zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout)),
-				logLevel),
-		)
+		//同时将日志输出到控制台，NewJSONEncoder 是结构化输出
+		zapcore.NewCore(
+			zapcore.NewJSONEncoder(config),
+			zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout)),
+			logLevel),
 	}
 
 	core := zapcore.NewTee(outputList...)
