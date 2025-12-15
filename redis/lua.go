@@ -3,11 +3,11 @@ package redis
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	redis "github.com/redis/go-redis/v9"
 	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/utils"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +25,7 @@ type LuaExecutorAPI interface {
 }
 
 // redis对象管理
-type LuaExecutor[T any] struct {
+type LuaExecutor struct {
 	name         string
 	client       redis.UniversalClient
 	LuaScript    string
@@ -36,14 +36,14 @@ type LuaExecutor[T any] struct {
 	logger *zap.Logger
 }
 
-func NewLuaExecutorWithLogger[T any](
+func NewLuaExecutorWithLogger(
 	name string,
 	client redis.UniversalClient,
 	luaScript string,
 	respFn func(res any) error,
 	logger *zap.Logger,
-) *LuaExecutor[T] {
-	return &LuaExecutor[T]{
+) *LuaExecutor {
+	return &LuaExecutor{
 		name:      name,
 		client:    client,
 		LuaScript: luaScript,
@@ -52,16 +52,16 @@ func NewLuaExecutorWithLogger[T any](
 	}
 }
 
-func NewLuaExecutor[T any](
+func NewLuaExecutor(
 	name string,
 	client redis.UniversalClient,
 	luaScript string,
 	respFn func(res any) error,
-) *LuaExecutor[T] {
-	return NewLuaExecutorWithLogger[T](name, client, luaScript, respFn, log.GlobalLog().With(zap.String("lua_exec_name", name)))
+) *LuaExecutor {
+	return NewLuaExecutorWithLogger(name, client, luaScript, respFn, log.GlobalLog().With(zap.String("lua_exec_name", name)))
 }
 
-func (l *LuaExecutor[T]) PrepareLuaScript(ctx context.Context) error {
+func (l *LuaExecutor) PrepareLuaScript(ctx context.Context) error {
 	if l.client == nil {
 		return fmt.Errorf("redis client is nil")
 	}
@@ -77,7 +77,7 @@ func (l *LuaExecutor[T]) PrepareLuaScript(ctx context.Context) error {
 	return nil
 }
 
-func (l *LuaExecutor[T]) fastPath(
+func (l *LuaExecutor) fastPath(
 	ctx context.Context,
 	keys []string,
 	scriptArgs ...any,
@@ -90,36 +90,47 @@ func (l *LuaExecutor[T]) fastPath(
 		if l.respFn != nil {
 			return l.respFn(res)
 		}
-		// 默认处理
-		if resInt, _ := res.(int64); resInt == 1 {
-			log.GlobalLog().Debug("updated redis", zap.Strings("key", keys))
-		} else {
-			log.GlobalLog().Info("skipped outdated event", zap.Strings("key", keys), zap.Any("data", scriptArgs))
-		}
 	}
 	return err
 }
 
-func (l *LuaExecutor[T]) slowPathWithLock(
+func (l *LuaExecutor) slowPathWithLock(
 	ctx context.Context,
 	keys []string,
 	scriptArgs ...any,
 ) error {
-	l.mx.Lock()
-	defer l.mx.Unlock()
-	// double check
-	if err := l.fastPath(ctx, keys, scriptArgs...); err == nil {
-		return nil
-	}
-	log.GlobalLog().Warn("redis script not found, reloading", zap.String("sha", l.LuaScriptSha))
-	if err := l.PrepareLuaScript(ctx); err != nil {
-		log.GlobalLog().Error("failed to reload lua script", zap.Error(err))
+	// 走兜底逻辑, 网络流量会更大
+	res, err := l.client.Eval(ctx, l.LuaScript, keys, scriptArgs...).Result()
+	if err != nil {
 		return err
 	}
-	return l.fastPath(ctx, keys, scriptArgs...)
+	if l.respFn != nil {
+		return l.respFn(res)
+	}
+	if resInt, _ := res.(int64); resInt == 1 {
+		log.GlobalLog().Debug("updated redis", zap.Strings("key", keys))
+	}
+
+	// 异步修复
+	go utils.GoWithAction(func() {
+		l.mx.Lock()
+		defer l.mx.Unlock()
+		if l.LuaScriptSha != "" {
+			return
+		}
+
+		log.GlobalLog().Warn("redis script not found, reloading", zap.String("sha", l.LuaScriptSha))
+		if err := l.PrepareLuaScript(ctx); err != nil {
+			log.GlobalLog().Error("failed to reload lua script", zap.Error(err))
+		}
+	}, func(r any) {
+		log.GlobalLog().Error("lua script reload panic", zap.String("name", l.name), zap.Strings("keys", keys), zap.Any("args", scriptArgs), zap.Any("recover", r))
+	})
+
+	return err
 }
 
-func (l *LuaExecutor[T]) UpdateOneEvent(
+func (l *LuaExecutor) UpdateOneEvent(
 	ctx context.Context,
 	keys []string,
 	scriptArgs ...any,
@@ -132,8 +143,5 @@ func (l *LuaExecutor[T]) UpdateOneEvent(
 		return nil
 	}
 
-	if strings.Contains(err.Error(), "NOSCRIPT") { // 修正了原代码中对 err 的检查
-		return l.slowPathWithLock(ctx, keys, scriptArgs...)
-	}
-	return err
+	return l.slowPathWithLock(ctx, keys, scriptArgs...)
 }
