@@ -11,7 +11,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 
-func ParseToken(tokenString string) (*jwt.Token, error) {
+func ParseToken(secret string, tokenString string) (*jwt.Token, error) {
 	return jwt.Parse(
 		tokenString,
 		func(t *jwt.Token) (interface{}, error) {
@@ -20,7 +20,7 @@ func ParseToken(tokenString string) (*jwt.Token, error) {
 				return nil, errors.New("unexpected decoder or hash alg")
 			}
 
-			return []byte(os.Getenv("JWT_MAILBOX_KEY")), nil
+			return []byte(secret), nil
 		},
 		jwt.WithExpirationRequired(),
 	)
@@ -50,7 +50,7 @@ func MiddlewareJWTAuth(
 			headers := req.Header()
 			// Authorization: Bearer xxxx
 			jwtToken := strings.TrimSpace(strings.TrimPrefix(headers.Get("Authorization"), "Bearer "))
-			_, err := ParseToken(jwtToken)
+			_, err := ParseToken(svcJwtSecret, jwtToken)
 			if err != nil {
 				return nil, err
 			}

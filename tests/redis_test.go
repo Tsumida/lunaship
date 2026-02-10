@@ -36,10 +36,9 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
+// Test case: concurrent Lua executions with occasional key deletes and script flush.
+// Expectation: final counter equals total successful increments (no lost updates).
 func TestLua_auto_reload(t *testing.T) {
-	// 目标: 如果脚本被删除、或者未初始化，也能正常执行。
-	// 测试: 初始值为0，每次递增1， 执行N次后，值应为N。
-
 	key := "lua_auto_reload_test_key"
 	script := `
 return redis.call("INCR", KEYS[1])
@@ -80,16 +79,59 @@ return redis.call("INCR", KEYS[1])
 	assert.Equal(t, N, val, "Final value should be %d", N)
 }
 
+// Test case: script is preloaded, flushed (NOSCRIPT), then executed twice.
+// Expectation: executor reloads script and both executions succeed (counter == 2).
+func TestLua_reload_after_noscript(t *testing.T) {
+	key := "lua_reload_after_noscript_test_key"
+	script := `
+return redis.call("INCR", KEYS[1])
+	`
+	executor := redis.NewLuaExecutor(
+		"test_reload_after_noscript",
+		redis.GlobalRedis(),
+		script,
+		nil,
+	)
+	ctx := context.Background()
+
+	deleteKey(t, ctx, key)
+	assert.NoError(t, executor.PrepareLuaScript(ctx), "PrepareLuaScript should succeed")
+	deleteLuaScript(t, ctx)
+
+	t.Run("reload after NOSCRIPT", func(t *testing.T) {
+		assert.NoError(t, executor.UpdateOneEvent(ctx, []string{key}), "first UpdateOneEvent should succeed")
+		assert.Eventually(
+			t,
+			func() bool { return luaScriptReloaded(ctx, executor) },
+			5*time.Second,
+			100*time.Millisecond,
+			"lua script should be reloaded",
+		)
+		assert.NoError(t, executor.UpdateOneEvent(ctx, []string{key}), "second UpdateOneEvent should succeed")
+		val, err := redis.GlobalRedis().Get(ctx, key).Int()
+		assert.NoError(t, err, "Get should succeed")
+		assert.Equal(t, 2, val, "Final value should be %d", 2)
+	})
+}
+
 func deleteKey(t *testing.T, ctx context.Context, key string) {
 	t.Helper()
-	if err := redis.GlobalRedis().Del(ctx, key).Err(); err != nil {
-		t.Fatalf("Failed to delete key %s: %v", key, err)
-	}
+	assert.NoError(t, redis.GlobalRedis().Del(ctx, key).Err(), "Failed to delete key %s", key)
 }
 
 func deleteLuaScript(t *testing.T, ctx context.Context) {
 	t.Helper()
-	if err := redis.GlobalRedis().ScriptFlush(ctx).Err(); err != nil {
-		panic(err)
+	assert.NoError(t, redis.GlobalRedis().ScriptFlush(ctx).Err(), "ScriptFlush should succeed")
+}
+
+func luaScriptReloaded(ctx context.Context, executor *redis.LuaExecutor) bool {
+	sha := executor.LuaScriptSha
+	if sha == "" {
+		return false
 	}
+	exists, err := redis.GlobalRedis().ScriptExists(ctx, sha).Result()
+	if err != nil {
+		return false
+	}
+	return len(exists) > 0 && exists[0]
 }

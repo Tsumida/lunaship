@@ -11,7 +11,8 @@ import (
 func TestParseToken(t *testing.T) {
 
 	var (
-		secret  = ""
+		secret  = "test-secret"
+		token   = ""
 		payload = map[string]interface{}{
 			"sub":  "1234567890",
 			"name": "John Doe",
@@ -21,15 +22,16 @@ func TestParseToken(t *testing.T) {
 	)
 
 	t.Run("sign-jwt", func(tt *testing.T) {
+		tt.Setenv("JWT_MAILBOX_KEY", secret)
 		tk, err := SignJWT(payload)
 		assert.NoError(tt, err)
 		tt.Log(tk)
 
-		secret = tk
+		token = tk
 	})
 
 	t.Run("validate-jwt", func(tt *testing.T) {
-		tk, err := ParseToken(secret)
+		tk, err := ParseToken(secret, token)
 		assert.NoError(tt, err)
 
 		claim, ok := tk.Claims.(jwt.MapClaims)

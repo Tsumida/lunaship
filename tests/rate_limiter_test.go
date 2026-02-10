@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+// Test case: limit of 1 request with long period, two back-to-back calls.
+// Expectation: first call allowed, second call rate-limited.
 func TestRateLimiter_AllowsThenLimits(t *testing.T) {
 	ctx := context.Background()
 	limit := redis_rate.Limit{Rate: 1, Burst: 1, Period: time.Hour}
