@@ -351,3 +351,8 @@ For each user question (especially non-trivial tasks), your response should incl
   * Correctness and robustness;
   * Maintainability and evolution strategies.
 * When important information is missing and clarification is not necessary, try to reduce unnecessary back-and-forth and question-style dialogue, directly provide conclusions and implementation suggestions after high-quality thinking.
+
+## Code style of Golang
+- You should add explict description and expectation for each test flow. Meanwhile, test flow should be clean and easy to understand, avoiding too much initialization or complex logic in the test code itself. 
+- If necessary, you can extract helper functions to keep the test code concise and focused on the core logic being tested.
+- Prefer assert than if-else block in test code. 

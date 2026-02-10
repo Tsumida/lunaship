@@ -29,7 +29,16 @@ func NewReqRespLogger() connect.UnaryInterceptorFunc {
 					zap.Uint64("start_ms", start),
 				}
 			)
-			log.GlobalLog().Info("request", fields...)
+			if traceID, spanID, ok := log.TraceFromContext(ctx); ok {
+				fields = append(fields,
+					zap.String("trace_id", traceID),
+					zap.String("span_id", spanID),
+				)
+			}
+			logger := log.Logger(ctx)
+			if log.IsSampled(ctx) {
+				logger.Info("request", fields...)
+			}
 
 			defer func() {
 				durInMs := utils.NowInMs() - start
@@ -38,12 +47,19 @@ func NewReqRespLogger() connect.UnaryInterceptorFunc {
 					zap.Uint64("duration_ms", durInMs),
 				)
 				if err != nil {
-					fields = append(fields, zap.Error(err))
+					fields = append(fields,
+						zap.String("err_code", connect.CodeOf(err).String()),
+						zap.Error(err),
+					)
+					logger.Error("response", fields...)
+					return
 				}
-				log.GlobalLog().Info(
-					"responese",
-					fields...,
-				)
+				if log.IsSampled(ctx) {
+					logger.Info(
+						"responese",
+						fields...,
+					)
+				}
 			}()
 
 			resp, err = next(ctx, req)
