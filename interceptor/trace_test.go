@@ -101,7 +101,7 @@ func newTraceServer(
 			handler,
 			connect.WithInterceptors(
 				NewTraceInterceptor(),
-				NewReqRespLogger(),
+				NewLoggerInterceptor(),
 			),
 		),
 	)
