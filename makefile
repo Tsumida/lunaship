@@ -30,3 +30,11 @@ test:
 	@go tool cover -func=${PROJECT_ROOT}/tmp/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) down  && sleep 2 && docker-compose -f $(DOCKER_COMPOSE_FILE) up -d && sleep 3
 	@echo "Running integration tests" && go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./...
+
+ut:
+	@echo "work_dir=${PROJECT_ROOT}"
+	@mkdir -p ${PROJECT_ROOT}/tmp
+	@touch ${PROJECT_ROOT}/tmp/coverage.out
+	@chmod +x ${PROJECT_ROOT}/tmp/coverage.out
+	@go tool cover -func=${PROJECT_ROOT}/tmp/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
+	@echo "Running unit tests" && go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out $$(go list ./... | grep -v '/tests')
