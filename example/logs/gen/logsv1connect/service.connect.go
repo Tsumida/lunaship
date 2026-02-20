@@ -35,11 +35,14 @@ const (
 const (
 	// DummyServicePingProcedure is the fully-qualified name of the DummyService's Ping RPC.
 	DummyServicePingProcedure = "/logs.v1.DummyService/Ping"
+	// DummyServiceTransferProcedure is the fully-qualified name of the DummyService's Transfer RPC.
+	DummyServiceTransferProcedure = "/logs.v1.DummyService/Transfer"
 )
 
 // DummyServiceClient is a client for the logs.v1.DummyService service.
 type DummyServiceClient interface {
 	Ping(context.Context, *connect.Request[gen.PingRequest]) (*connect.Response[gen.PingResponse], error)
+	Transfer(context.Context, *connect.Request[gen.TransferRequest]) (*connect.Response[gen.TransferResponse], error)
 }
 
 // NewDummyServiceClient constructs a client for the logs.v1.DummyService service. By default, it
@@ -59,12 +62,19 @@ func NewDummyServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(dummyServiceMethods.ByName("Ping")),
 			connect.WithClientOptions(opts...),
 		),
+		transfer: connect.NewClient[gen.TransferRequest, gen.TransferResponse](
+			httpClient,
+			baseURL+DummyServiceTransferProcedure,
+			connect.WithSchema(dummyServiceMethods.ByName("Transfer")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // dummyServiceClient implements DummyServiceClient.
 type dummyServiceClient struct {
-	ping *connect.Client[gen.PingRequest, gen.PingResponse]
+	ping     *connect.Client[gen.PingRequest, gen.PingResponse]
+	transfer *connect.Client[gen.TransferRequest, gen.TransferResponse]
 }
 
 // Ping calls logs.v1.DummyService.Ping.
@@ -72,9 +82,15 @@ func (c *dummyServiceClient) Ping(ctx context.Context, req *connect.Request[gen.
 	return c.ping.CallUnary(ctx, req)
 }
 
+// Transfer calls logs.v1.DummyService.Transfer.
+func (c *dummyServiceClient) Transfer(ctx context.Context, req *connect.Request[gen.TransferRequest]) (*connect.Response[gen.TransferResponse], error) {
+	return c.transfer.CallUnary(ctx, req)
+}
+
 // DummyServiceHandler is an implementation of the logs.v1.DummyService service.
 type DummyServiceHandler interface {
 	Ping(context.Context, *connect.Request[gen.PingRequest]) (*connect.Response[gen.PingResponse], error)
+	Transfer(context.Context, *connect.Request[gen.TransferRequest]) (*connect.Response[gen.TransferResponse], error)
 }
 
 // NewDummyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -90,10 +106,18 @@ func NewDummyServiceHandler(svc DummyServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(dummyServiceMethods.ByName("Ping")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dummyServiceTransferHandler := connect.NewUnaryHandler(
+		DummyServiceTransferProcedure,
+		svc.Transfer,
+		connect.WithSchema(dummyServiceMethods.ByName("Transfer")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/logs.v1.DummyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DummyServicePingProcedure:
 			dummyServicePingHandler.ServeHTTP(w, r)
+		case DummyServiceTransferProcedure:
+			dummyServiceTransferHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -105,4 +129,8 @@ type UnimplementedDummyServiceHandler struct{}
 
 func (UnimplementedDummyServiceHandler) Ping(context.Context, *connect.Request[gen.PingRequest]) (*connect.Response[gen.PingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("logs.v1.DummyService.Ping is not implemented"))
+}
+
+func (UnimplementedDummyServiceHandler) Transfer(context.Context, *connect.Request[gen.TransferRequest]) (*connect.Response[gen.TransferResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("logs.v1.DummyService.Transfer is not implemented"))
 }

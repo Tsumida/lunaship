@@ -125,6 +125,110 @@ func (x *PingResponse) GetSpanId() string {
 	return ""
 }
 
+type TransferRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetAddr    string                 `protobuf:"bytes,1,opt,name=target_addr,json=target,proto3" json:"target_addr,omitempty"`
+	Endpoint      string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	RequestJson   string                 `protobuf:"bytes,3,opt,name=request_json,proto3" json:"request_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferRequest) Reset() {
+	*x = TransferRequest{}
+	mi := &file_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferRequest) ProtoMessage() {}
+
+func (x *TransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferRequest.ProtoReflect.Descriptor instead.
+func (*TransferRequest) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TransferRequest) GetTargetAddr() string {
+	if x != nil {
+		return x.TargetAddr
+	}
+	return ""
+}
+
+func (x *TransferRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *TransferRequest) GetRequestJson() string {
+	if x != nil {
+		return x.RequestJson
+	}
+	return ""
+}
+
+type TransferResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ResponseJson  string                 `protobuf:"bytes,1,opt,name=response_json,proto3" json:"response_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferResponse) Reset() {
+	*x = TransferResponse{}
+	mi := &file_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferResponse) ProtoMessage() {}
+
+func (x *TransferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferResponse.ProtoReflect.Descriptor instead.
+func (*TransferResponse) Descriptor() ([]byte, []int) {
+	return file_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TransferResponse) GetResponseJson() string {
+	if x != nil {
+		return x.ResponseJson
+	}
+	return ""
+}
+
 var File_service_proto protoreflect.FileDescriptor
 
 const file_service_proto_rawDesc = "" +
@@ -135,9 +239,16 @@ const file_service_proto_rawDesc = "" +
 	"\fPingResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x19\n" +
 	"\btrace_id\x18\x02 \x01(\tR\atraceId\x12\x17\n" +
-	"\aspan_id\x18\x03 \x01(\tR\x06spanId2C\n" +
+	"\aspan_id\x18\x03 \x01(\tR\x06spanId\"n\n" +
+	"\x0fTransferRequest\x12\x1b\n" +
+	"\vtarget_addr\x18\x01 \x01(\tR\x06target\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\"\n" +
+	"\frequest_json\x18\x03 \x01(\tR\frequest_json\"8\n" +
+	"\x10TransferResponse\x12$\n" +
+	"\rresponse_json\x18\x01 \x01(\tR\rresponse_json2\x84\x01\n" +
 	"\fDummyService\x123\n" +
-	"\x04Ping\x12\x14.logs.v1.PingRequest\x1a\x15.logs.v1.PingResponseB5Z3github.com/tsumida/lunaship/example/logs/gen;logsv1b\x06proto3"
+	"\x04Ping\x12\x14.logs.v1.PingRequest\x1a\x15.logs.v1.PingResponse\x12?\n" +
+	"\bTransfer\x12\x18.logs.v1.TransferRequest\x1a\x19.logs.v1.TransferResponseB5Z3github.com/tsumida/lunaship/example/logs/gen;logsv1b\x06proto3"
 
 var (
 	file_service_proto_rawDescOnce sync.Once
@@ -151,16 +262,20 @@ func file_service_proto_rawDescGZIP() []byte {
 	return file_service_proto_rawDescData
 }
 
-var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_service_proto_goTypes = []any{
-	(*PingRequest)(nil),  // 0: logs.v1.PingRequest
-	(*PingResponse)(nil), // 1: logs.v1.PingResponse
+	(*PingRequest)(nil),      // 0: logs.v1.PingRequest
+	(*PingResponse)(nil),     // 1: logs.v1.PingResponse
+	(*TransferRequest)(nil),  // 2: logs.v1.TransferRequest
+	(*TransferResponse)(nil), // 3: logs.v1.TransferResponse
 }
 var file_service_proto_depIdxs = []int32{
 	0, // 0: logs.v1.DummyService.Ping:input_type -> logs.v1.PingRequest
-	1, // 1: logs.v1.DummyService.Ping:output_type -> logs.v1.PingResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: logs.v1.DummyService.Transfer:input_type -> logs.v1.TransferRequest
+	1, // 2: logs.v1.DummyService.Ping:output_type -> logs.v1.PingResponse
+	3, // 3: logs.v1.DummyService.Transfer:output_type -> logs.v1.TransferResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -177,7 +292,7 @@ func file_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_proto_rawDesc), len(file_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
