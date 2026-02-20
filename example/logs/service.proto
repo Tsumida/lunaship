@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package logs.v1;
+
+option go_package = "github.com/tsumida/lunaship/example/logs/gen;logsv1";
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+  string trace_id = 2;
+  string span_id = 3;
+}
+
+service DummyService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}

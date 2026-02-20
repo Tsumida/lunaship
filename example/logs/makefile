@@ -1,0 +1,2 @@
+pb:
+	@buf generate -v
