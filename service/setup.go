@@ -1,4 +1,4 @@
-package infra
+package service
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/log"
 	"github.com/tsumida/lunaship/utils"
 	"go.uber.org/zap"
@@ -51,6 +52,12 @@ func (s *Service) RunAfterInit(
 		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
 		zapcore.InfoLevel,
 	)
+	if err := infra.InitTracingFromEnv(); err != nil {
+		log.GlobalLog().Error("failed to init tracing", zap.Error(err))
+	}
+	defer func() {
+		_ = infra.CloseTracing()
+	}()
 	defer func() {
 		_ = log.GlobalLog().Sync()
 		log.GlobalLog().Info("server done")

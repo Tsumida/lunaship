@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -44,7 +45,7 @@ func NewRedisRpcCounter() connect.UnaryInterceptorFunc {
 }
 
 var (
-	// key=string, valuee=uint64
+	// key=string, value=*atomic.Uint64
 	RPC_COUNTER = sync.Map{}
 )
 
@@ -59,7 +60,7 @@ func PrintRpcCounter(ctx context.Context, interval time.Duration, topk uint) {
 			time.Sleep(interval)
 			mapper := make(map[string]uint64, 64)
 			RPC_COUNTER.Range(func(key, value any) bool {
-				mapper[key.(string)] = value.(uint64)
+				mapper[key.(string)] = value.(*atomic.Uint64).Load()
 				return true
 			})
 
@@ -82,18 +83,27 @@ func PrintRpcCounter(ctx context.Context, interval time.Duration, topk uint) {
 }
 
 func NewLocalRpcCounter() connect.UnaryInterceptorFunc {
+	increment := func(key string) {
+		if current, ok := RPC_COUNTER.Load(key); ok {
+			current.(*atomic.Uint64).Add(1)
+			return
+		}
+
+		counter := &atomic.Uint64{}
+		counter.Add(1)
+		actual, loaded := RPC_COUNTER.LoadOrStore(key, counter)
+		if loaded {
+			actual.(*atomic.Uint64).Add(1)
+		}
+	}
+
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
 		return connect.UnaryFunc(func(
 			ctx context.Context,
 			req connect.AnyRequest,
 		) (connect.AnyResponse, error) {
 			key := req.Spec().Procedure
-			val := uint64(1)
-			if cnt, ok := RPC_COUNTER.Load(key); ok {
-				val += cnt.(uint64)
-			}
-
-			RPC_COUNTER.Store(key, val)
+			increment(key)
 
 			return next(ctx, req)
 		})

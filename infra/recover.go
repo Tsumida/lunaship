@@ -16,7 +16,7 @@ func RecoverFn(
 	recoverValue any,
 ) error {
 
-	log.GlobalLog().Error(
+	log.Logger(ctx).Error(
 		"request panic",
 		zap.String("target", spec.Procedure),
 		zap.Any("recover", recoverValue),

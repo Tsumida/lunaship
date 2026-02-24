@@ -142,6 +142,11 @@ func (l *LuaExecutor) UpdateOneEvent(
 	if err == nil {
 		return nil
 	}
+	if redis.HasErrorPrefix(err, "NOSCRIPT") {
+		l.mx.Lock()
+		l.LuaScriptSha = ""
+		l.mx.Unlock()
+	}
 
 	return l.slowPathWithLock(ctx, keys, scriptArgs...)
 }

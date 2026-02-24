@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-remote
+  namespace: test
+  labels:
+    app: jaeger-remote
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: jaeger-remote
+  namespace: test
+  labels:
+    app: jaeger-remote
+    kubernetes.io/service-name: jaeger-remote
+addressType: IPv4
+endpoints:
+  - addresses:
+      - 192.168.0.120 # replace with the tinyinfra host IP running Jaeger
+ports:
+  - name: otlp-http
+    port: 4318

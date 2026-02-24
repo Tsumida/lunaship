@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package logs.v1;
+
+option go_package = "github.com/tsumida/lunaship/example/logs/gen;logsv1";
+
+// 
+message PingRequest {
+  string message = 1;
+}
+
+// 
+message PingResponse {
+  string message = 1;
+  string trace_id = 2;
+  string span_id = 3;
+}
+
+// 
+message TransferRequest {
+  string target_addr = 1 [json_name = "target"];
+  string endpoint = 2;
+  string request_json = 3 [json_name = "request_json"];
+}
+
+// 
+message TransferResponse {
+  string response_json = 1 [json_name = "response_json"];
+}
+
+// 
+service DummyService {
+  // 
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // 
+  rpc Transfer(TransferRequest) returns (TransferResponse);
+}

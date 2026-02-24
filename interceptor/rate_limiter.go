@@ -12,9 +12,8 @@ import (
 )
 
 func NewQPSRateLimiter(
-	QpsLimit uint64,
 	redisClient redis.RedisClient,
-	reqPerSec int,
+	redisLimit redis_rate.Limit,
 ) connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
 		return connect.UnaryFunc(func(
@@ -26,15 +25,14 @@ func NewQPSRateLimiter(
 			key := fmt.Sprintf("%s#%s", peer, url)
 			result, err := redis_rate.
 				NewLimiter(redisClient).
-				Allow(ctx, key, redis_rate.PerSecond(reqPerSec))
+				Allow(ctx, key, redisLimit)
 			if err != nil {
-
 				return nil, connect.NewError(
-					connect.CodeResourceExhausted,
-					errors.New("rate-limited"),
+					connect.CodeUnavailable,
+					fmt.Errorf("rate limiter backend error: %w", err),
 				)
 			}
-			if result.Allowed > 0 {
+			if result.Allowed <= 0 {
 				return nil, connect.NewError(
 					connect.CodeResourceExhausted,
 					errors.New("rate-limited"),
