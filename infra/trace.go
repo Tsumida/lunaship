@@ -2,6 +2,7 @@ package infra
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -9,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
-	jaegerlog "github.com/uber/jaeger-client-go/log"
 	"github.com/tsumida/lunaship/log"
 	"github.com/tsumida/lunaship/utils"
 	"go.uber.org/zap"
@@ -22,12 +23,21 @@ type TraceConfig struct {
 	AgentHost        string
 	AgentPort        string
 	CollectorEndpoint string
+	SamplerType      string
 	SamplerRate      float64
 	ErrorLogDisabled bool
 }
 
 var traceCloser = func() error { return nil }
 var traceErrorLogDisabled bool
+var traceReporterErrorCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "lunaship_trace_reporter_errors_total",
+	Help: "Total number of trace reporter errors",
+})
+
+func init() {
+	prometheus.MustRegister(traceReporterErrorCounter)
+}
 
 func LoadTraceConfigFromEnv() (TraceConfig, error) {
 	var parseErr error
@@ -45,6 +55,17 @@ func LoadTraceConfigFromEnv() (TraceConfig, error) {
 	if err != nil && parseErr == nil {
 		parseErr = err
 	}
+	samplerType := strings.TrimSpace(os.Getenv("JAEGER_SAMPLER_TYPE"))
+	if samplerType == "" {
+		samplerType = "const"
+	}
+	if samplerType == "const" {
+		if rate == 0 {
+			rate = 0
+		} else {
+			rate = 1
+		}
+	}
 
 	serviceName := utils.StrOrDefault(
 		os.Getenv("JAEGER_SERVICE_NAME"),
@@ -57,6 +78,7 @@ func LoadTraceConfigFromEnv() (TraceConfig, error) {
 		AgentHost:        utils.StrOrDefault(os.Getenv("JAEGER_AGENT_HOST"), "127.0.0.1"),
 		AgentPort:        utils.StrOrDefault(os.Getenv("JAEGER_AGENT_PORT"), "6831"),
 		CollectorEndpoint: os.Getenv("JAEGER_COLLECTOR_ENDPOINT"),
+		SamplerType:      samplerType,
 		SamplerRate:      rate,
 		ErrorLogDisabled: errorLogDisabled,
 	}
@@ -73,6 +95,16 @@ func InitTracingFromEnv() error {
 	if err != nil && !conf.ErrorLogDisabled {
 		log.GlobalLog().Error("trace env parse failed", zap.Error(err))
 	}
+	log.GlobalLog().Info("trace config",
+		zap.Bool("enabled", conf.Enabled),
+		zap.String("service_name", conf.ServiceName),
+		zap.String("sampler_type", conf.SamplerType),
+		zap.Float64("sampler_rate", conf.SamplerRate),
+		zap.String("collector_endpoint", conf.CollectorEndpoint),
+		zap.String("agent_host", conf.AgentHost),
+		zap.String("agent_port", conf.AgentPort),
+		zap.Bool("error_log_disabled", conf.ErrorLogDisabled),
+	)
 	if !conf.Enabled {
 		return nil
 	}
@@ -98,7 +130,7 @@ func InitTracing(conf TraceConfig) (io.Closer, error) {
 	cfg := &jaegerconfig.Configuration{
 		ServiceName: conf.ServiceName,
 		Sampler: &jaegerconfig.SamplerConfig{
-			Type:  "probabilistic",
+			Type:  conf.SamplerType,
 			Param: conf.SamplerRate,
 		},
 		Reporter: &jaegerconfig.ReporterConfig{
@@ -112,7 +144,7 @@ func InitTracing(conf TraceConfig) (io.Closer, error) {
 		cfg.Reporter.LocalAgentHostPort = net.JoinHostPort(conf.AgentHost, conf.AgentPort)
 	}
 
-	tracer, closer, err := cfg.NewTracer(jaegerconfig.Logger(jaegerlog.StdLogger))
+	tracer, closer, err := cfg.NewTracer(jaegerconfig.Logger(&traceReporterLogger{}))
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +157,23 @@ func InitTracing(conf TraceConfig) (io.Closer, error) {
 
 func CloseTracing() error {
 	return traceCloser()
+}
+
+type traceReporterLogger struct{}
+
+func (l *traceReporterLogger) Error(msg string) {
+	traceReporterErrorCounter.Inc()
+	if traceErrorLogDisabled {
+		return
+	}
+	log.GlobalLog().Error("trace reporter error", zap.String("message", msg))
+}
+
+func (l *traceReporterLogger) Infof(msg string, args ...interface{}) {
+	if traceErrorLogDisabled {
+		return
+	}
+	log.GlobalLog().Info("trace reporter info", zap.String("message", fmt.Sprintf(msg, args...)))
 }
 
 func parseBoolEnv(key string, defaultValue bool) (bool, error) {

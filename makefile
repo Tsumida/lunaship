@@ -38,3 +38,18 @@ ut:
 	@chmod +x ${PROJECT_ROOT}/tmp/coverage.out
 	@go tool cover -func=${PROJECT_ROOT}/tmp/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
 	@echo "Running unit tests" && go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out $$(go list ./... | grep -v '/tests')
+
+# ==============================================================================
+# 🧪 Logs Demo
+# ==============================================================================
+build:
+	@$(MAKE) -f example/logs/makefile build
+
+upload:
+	@$(MAKE) -f example/logs/makefile upload
+
+import:
+	@$(MAKE) -f example/logs/makefile import
+
+demo-logs:
+	@$(MAKE) -f example/logs/makefile demo-logs
