@@ -12,10 +12,11 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/tsumida/lunaship/log"
-	"github.com/uber/jaeger-client-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -78,13 +79,17 @@ func initTestLogger(t *testing.T) string {
 
 func initTestTracer(t *testing.T) {
 	t.Helper()
-	tracer, closer := jaeger.NewTracer(
-		"test-service",
-		jaeger.NewConstSampler(true),
-		jaeger.NewInMemoryReporter(),
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
-	t.Cleanup(func() { _ = closer.Close() })
-	opentracing.SetGlobalTracer(tracer)
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 }
 
 func newTraceServer(

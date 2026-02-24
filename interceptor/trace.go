@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/log"
-	"github.com/uber/jaeger-client-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +24,7 @@ var (
 		"x-real-ip",
 		"user-agent",
 		"content-type",
+		"traceparent",
 		"uber-trace-id",
 	}
 )
@@ -35,17 +36,14 @@ func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 			req connect.AnyRequest,
 		) (connect.AnyResponse, error) {
 			span, ctx := startServerSpan(ctx, req)
-			defer span.Finish()
+			defer span.End()
 
 			ctx = log.WithFields(ctx, requestBaseFields(req)...)
 
 			resp, err := next(ctx, req)
 			if err != nil {
-				ext.Error.Set(span, true)
-				span.LogFields(
-					otlog.String("event", "error"),
-					otlog.String("message", err.Error()),
-				)
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 			}
 			return resp, err
 		})
@@ -59,16 +57,13 @@ func NewTraceClientInterceptor() connect.UnaryInterceptorFunc {
 			ctx context.Context,
 			req connect.AnyRequest,
 		) (connect.AnyResponse, error) {
-			span := startClientSpan(ctx, req)
-			defer span.Finish()
+			span, ctx := startClientSpan(ctx, req)
+			defer span.End()
 
 			resp, err := next(ctx, req)
 			if err != nil {
-				ext.Error.Set(span, true)
-				span.LogFields(
-					otlog.String("event", "error"),
-					otlog.String("message", err.Error()),
-				)
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 			}
 			return resp, err
 		})
@@ -76,73 +71,45 @@ func NewTraceClientInterceptor() connect.UnaryInterceptorFunc {
 	return connect.UnaryInterceptorFunc(interceptor)
 }
 
-func startServerSpan(ctx context.Context, req connect.AnyRequest) (opentracing.Span, context.Context) {
-	tracer := opentracing.GlobalTracer()
-	carrier := opentracing.HTTPHeadersCarrier(req.Header())
-	parentCtx, err := tracer.Extract(opentracing.HTTPHeaders, carrier)
-	if err != nil && err != opentracing.ErrSpanContextNotFound && !infra.TraceErrorLogDisabled() {
-		log.GlobalLog().Warn("trace extract failed", zap.Error(err))
-	}
+func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
+	tracer := otel.Tracer("lunaship/trace")
+	propagator := otel.GetTextMapPropagator()
+	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(req.Header()))
 
 	spanName := req.Spec().Procedure
-	span := tracer.StartSpan(spanName, ext.RPCServerOption(parentCtx))
-	ext.SpanKindRPCServer.Set(span)
-	ext.Component.Set(span, "connect")
-	ext.HTTPMethod.Set(span, req.HTTPMethod())
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindServer))
+	span.SetAttributes(
+		attribute.String("rpc.system", "connect"),
+	)
+	if method := req.HTTPMethod(); method != "" {
+		span.SetAttributes(attribute.String("http.method", method))
+	}
 
-	ctx = opentracing.ContextWithSpan(ctx, span)
-	traceID, spanID, sampled := traceIdentifiers(span)
+	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
 	ctx = log.WithTrace(ctx, traceID, spanID, sampled)
 	return span, ctx
 }
 
-func startClientSpan(ctx context.Context, req connect.AnyRequest) opentracing.Span {
-	tracer := opentracing.GlobalTracer()
+func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
+	tracer := otel.Tracer("lunaship/trace")
 	spanName := req.Spec().Procedure
 
-	parentSpan := opentracing.SpanFromContext(ctx)
-	if parentSpan != nil {
-		span := tracer.StartSpan(spanName, opentracing.ChildOf(parentSpan.Context()))
-		ext.SpanKindRPCClient.Set(span)
-		ext.Component.Set(span, "connect")
-		if method := req.HTTPMethod(); method != "" {
-			ext.HTTPMethod.Set(span, method)
-		}
-		injectTraceHeaders(tracer, span, req.Header())
-		return span
-	}
-
-	span := tracer.StartSpan(spanName)
-	ext.SpanKindRPCClient.Set(span)
-	ext.Component.Set(span, "connect")
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+	span.SetAttributes(
+		attribute.String("rpc.system", "connect"),
+	)
 	if method := req.HTTPMethod(); method != "" {
-		ext.HTTPMethod.Set(span, method)
+		span.SetAttributes(attribute.String("http.method", method))
 	}
-	injectTraceHeaders(tracer, span, req.Header())
-	return span
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header()))
+	return span, ctx
 }
 
-func injectTraceHeaders(tracer opentracing.Tracer, span opentracing.Span, header http.Header) {
-	if tracer == nil || span == nil {
-		return
-	}
-	carrier := opentracing.HTTPHeadersCarrier(header)
-	if err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, carrier); err != nil {
-		if !infra.TraceErrorLogDisabled() {
-			log.GlobalLog().Warn("trace inject failed", zap.Error(err))
-		}
-	}
-}
-
-func traceIdentifiers(span opentracing.Span) (traceID, spanID string, sampled bool) {
-	if span == nil {
+func traceIdentifiers(sc trace.SpanContext) (traceID, spanID string, sampled bool) {
+	if !sc.IsValid() {
 		return "", "", true
 	}
-	sc, ok := span.Context().(jaeger.SpanContext)
-	if !ok {
-		return "", "", true
-	}
-	return sc.TraceID().String(), sc.SpanID().String(), sc.IsSampled()
+	return sc.TraceID().String(), sc.SpanID().String(), sc.TraceFlags().IsSampled()
 }
 
 func requestBaseFields(req connect.AnyRequest) []zap.Field {
