@@ -1,11 +1,13 @@
 # Goal
 
-- New feature: Logging with server and trace information. 
+- New feature: Better log keys for tracing and debugging, including server and trace information.
+- New feature: Aligned with observability infrastructure (k3s, loki, prometheus, jaeger, grafana). 
 
 # Facts
+- The service is running in k3s cluster, and we have loki for log collection, jaeger for tracing, and prometheus for metrics. Grafana is used for visualization.
+- Code of logging is under `interceptor/req_rsp_logger.go`, and we can modify it to include server and trace information.
 
-
-# Plan
+# Plan: 
 
 ## Logging with server and trace information. 
 
@@ -16,30 +18,24 @@ All required fields must appear in the final output; the logging system may auto
 
 ## Required rules
 - `Required`: Must present in the final log output. Zero-value are injected if not provided by caller. The logging system must ensure these fields are always present in the final log output.
-- `Optional`: May be absent if not provided by caller.
+- `Optional`: May be absent in the final log outpu if not provided by caller.
 
 ### Common Fields
 All internal logging should include the following fields:
 - `_level`: The log level, such as `debug`, `info`, `warn`, `error`. Required. Type=string
 - `_env`: "prod", "test". Required. Type=string
-- `_server_ip`: The IP address of the server. Required. Type=string
-- `_server_port`: The port of the server. Required. Type=int
 - `_app`: The name of the Application, comes from env "APP_NAME". Required. Type=string
+- `_app_ip`: The IP address of the application. Required. Type=string
+- `_app_port`: The port of the application. Required. Type=int
 - `_msg`: The log message. Required. Truncated if there are more than 1024 UTF-8 characters. Type=string
 - `_trace_id`: The trace ID for the request. Required. Type=string
 - `_span_id`: The span ID for the log entry. Required. Type=string
 - `_parent_span_id`: The parent span ID for the log entry. Optional, can be empty if there is no parent span. Type=string
-- `_err`: The error flag, true if there is an error. Optional, default is false. Set true when level is `error` or an error is attached. Type=boolean
 - `_ts`: UTC timestamp of the log entry in milliseconds. Required, if not provided, the logging system will automatically add it. Type=int
 
 Truncation rules:
 - Truncate `_msg` and `_sql` to 1024 UTF-8 characters (character count, not bytes) before JSON encoding.
 
-Server identity rules:
-- `_server_ip` and `_server_port` should represent the listening address that accepted the request. If there is no request context (background job), use the configured primary service address.
-
-Trace context availability:
-- If the trace context is missing, the logging system must generate a new `_trace_id` and `_span_id`, and set `_parent_span_id` to empty.
 
 Usage example:
 ```go
@@ -54,8 +50,8 @@ Example log output:
 // ok
 {
     "_level": "info",
-    "_server_ip": "192.168.0.100",
-    "_server_port": 8080,
+    "_app_ip": "192.168.0.100",
+    "_app_port": 8080,
     "_app": "user-service",
     "_env": "prod",
     "_msg": "Application submitted",
@@ -69,15 +65,14 @@ err:
 ```json
 {
     "_level": "error",
-    "_server_ip": "192.168.0.100",
-    "_server_port": 8080,
+    "_app_ip": "192.168.0.100",
+    "_app_port": 8080,
     "_app": "user-service",
     "_env": "prod",
     "_msg": "failed to connect to database",
     "_trace_id": "1a2b3c4d5e6f7g8h9i0j",    
     "_span_id": "1234567890abcdef",
     "_parent_span_id": "",
-    "_err": true,
     "_ts": 1771521635000
 }
 ```
@@ -86,19 +81,19 @@ err:
 While service A(@192.168.0.101:8080) calls service B(@192.168.0.102:8081), both of them print respective logs.
 RPC logs should include the following additional fields:
 - `_dur_ms`: The duration of the RPC call in milliseconds. Optional, can be added by logging system if not provided. Type=int
-- `_caller_ip`: The IP address of the caller. Required if server is callee. Type=string
-- `_caller_port`: The port number of the caller. Required if server is callee. Type=int
-- `_caller_app`: The name of the caller service. Required if server is callee. Type=string
-- `_callee_ip`: The IP address of the callee. Required if server is caller. Type=string
-- `_callee_port`: The port number of the callee. Required if server is caller. Type=int
-- `_callee_app`: The name of the callee service. Required if server is caller. Type=string
+- `_caller_ip`: The IP address of the caller. Required. Type=string
+- `_caller_port`: The port number of the caller. Required. Type=int
+- `_caller_app`: The name of the caller service. Required. Type=string
+- `_callee_ip`: The IP address of the callee. Required. Type=string
+- `_callee_port`: The port number of the callee. Required. Type=int
+- `_callee_app`: The name of the callee service. Required. Type=string
 
 For service A,  it prints:
 ```json
 {
     "_level": "info",
-    "_server_ip": "192.168.0.101",
-    "_server_port": 8080,
+    "_app_ip": "192.168.0.101",
+    "_app_port": 8080,
     "_app": "A",
     "_env": "prod",
     "_caller_ip": "192.168.0.101",
@@ -118,8 +113,8 @@ For service B:
 ```json
 {
     "_level": "info",
-    "_server_ip": "192.168.0.102",
-    "_server_port": 8081,
+    "_app_ip": "192.168.0.102",
+    "_app_port": 8081,
     "_app": "B",
     "_env": "prod",
     "_caller_ip": "192.168.0.101",
@@ -147,8 +142,8 @@ Example log:
 ```json
 {
     "_level": "info",
-    "_server_ip": "192.168.0.102",
-    "_server_port": 8081,
+    "_app_ip": "192.168.0.102",
+    "_app_port": 8081,
     "_app": "B",
     "_env": "prod",
     "_instance_ip": "192.168.0.103",
@@ -174,8 +169,8 @@ Example log:
 ```json
 {
     "_level": "info",
-    "_server_ip": "192.168.0.102",
-    "_server_port": 8081,
+    "_app_ip": "192.168.0.102",
+    "_app_port": 8081,
     "_app": "B",
     "_instance_ip": "192.168.0.104",
     "_instance_port": 3306,
@@ -196,4 +191,4 @@ Example log:
 1. User executes `make build, make upload` and then import images into k3s (at `192.168.0.120`). 
 2. User the executes `make demo-logs` to apply or rollout the pods. 
 3. When pod is ready, we can use `kubectl logs -n test  <pod-name>` to check the logs. We should see the above fields in the log output.
-4. User opens Grafana, queries {_trace_id="xxxx"} in Loki, and clicks the 'Jager' button to see the full trace
+4. User opens Grafana, queries {_trace_id="xxxx"} in Loki, and clicks the 'Jaeger' button to see the full trace

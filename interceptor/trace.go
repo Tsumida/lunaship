@@ -16,18 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	loggedHeaderKeys = []string{
-		"x-request-id",
-		"x-device-ip",
-		"x-forwarded-for",
-		"x-real-ip",
-		"user-agent",
-		"content-type",
-		"traceparent",
-		"uber-trace-id",
-	}
-)
+var ()
 
 func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
@@ -130,7 +119,6 @@ func requestBaseFields(req connect.AnyRequest) []zap.Field {
 		zap.String("http_method", req.HTTPMethod()),
 	)
 
-	fields = append(fields, headerFields(req.Header())...)
 	return fields
 }
 
@@ -162,18 +150,6 @@ func serverHostPort(header http.Header) (string, string) {
 		return host, port
 	}
 	return hostPort, ""
-}
-
-func headerFields(header http.Header) []zap.Field {
-	fields := make([]zap.Field, 0, len(loggedHeaderKeys))
-	for _, key := range loggedHeaderKeys {
-		value := strings.TrimSpace(header.Get(key))
-		if value == "" {
-			continue
-		}
-		fields = append(fields, zap.String(normalizeHeaderKey(key), value))
-	}
-	return fields
 }
 
 func normalizeHeaderKey(key string) string {
