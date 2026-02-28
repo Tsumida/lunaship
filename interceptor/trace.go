@@ -3,7 +3,7 @@ package interceptor
 import (
 	"context"
 	"net"
-	"net/http"
+	"strconv"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -15,8 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
-
-var ()
 
 func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
@@ -64,6 +62,7 @@ func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	tracer := otel.Tracer("lunaship/trace")
 	propagator := otel.GetTextMapPropagator()
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(req.Header()))
+	parentSpanID := parentSpanIDFromContext(ctx)
 
 	spanName := req.Spec().Procedure
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindServer))
@@ -75,13 +74,14 @@ func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	}
 
 	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
-	ctx = log.WithTrace(ctx, traceID, spanID, sampled)
+	ctx = log.WithTrace(ctx, traceID, spanID, parentSpanID, sampled)
 	return span, ctx
 }
 
 func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
 	tracer := otel.Tracer("lunaship/trace")
 	spanName := req.Spec().Procedure
+	parentSpanID := parentSpanIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
@@ -90,6 +90,8 @@ func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	if method := req.HTTPMethod(); method != "" {
 		span.SetAttributes(attribute.String("http.method", method))
 	}
+	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
+	ctx = log.WithTrace(ctx, traceID, spanID, parentSpanID, sampled)
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header()))
 	return span, ctx
 }
@@ -103,57 +105,48 @@ func traceIdentifiers(sc trace.SpanContext) (traceID, spanID string, sampled boo
 
 func requestBaseFields(req connect.AnyRequest) []zap.Field {
 	fields := make([]zap.Field, 0, 12)
-	if deviceIP := hostOnly(req.Peer().Addr); deviceIP != "" {
-		fields = append(fields, zap.String("device_ip", deviceIP))
-	}
-
-	serverHost, serverPort := serverHostPort(req.Header())
-	if serverHost != "" {
-		fields = append(fields, zap.String("server_ip", serverHost))
-	}
-	if serverPort != "" {
-		fields = append(fields, zap.String("server_port", serverPort))
-	}
+	callerIP, callerPort := parseAddress(req.Peer().Addr)
+	calleeApp, calleeIP, calleePort := log.AppIdentity()
 	fields = append(fields,
-		zap.String("server_endpoint", req.Spec().Procedure),
-		zap.String("http_method", req.HTTPMethod()),
+		zap.String("_caller_ip", callerIP),
+		zap.Int("_caller_port", callerPort),
+		zap.String("_caller_app", ""),
+		zap.String("_callee_ip", calleeIP),
+		zap.Int("_callee_port", calleePort),
+		zap.String("_callee_app", calleeApp),
+		zap.String("_rpc_target", req.Spec().Procedure),
+		zap.String("_rpc_protocol", req.Peer().Protocol),
+		zap.String("_http_method", req.HTTPMethod()),
 	)
-
 	return fields
 }
 
-func hostOnly(addr string) string {
+func parseAddress(addr string) (string, int) {
 	if addr == "" {
-		return ""
+		return "", 0
 	}
-	host, _, err := net.SplitHostPort(addr)
+	host, portStr, err := net.SplitHostPort(addr)
 	if err == nil {
-		return host
-	}
-	return addr
-}
-
-func serverHostPort(header http.Header) (string, string) {
-	hostPort := strings.TrimSpace(header.Get("X-Forwarded-Host"))
-	if hostPort == "" {
-		hostPort = strings.TrimSpace(header.Get("Host"))
-	}
-	if hostPort == "" {
-		return "", ""
-	}
-	if strings.Contains(hostPort, ",") {
-		parts := strings.Split(hostPort, ",")
-		hostPort = strings.TrimSpace(parts[0])
-	}
-	host, port, err := net.SplitHostPort(hostPort)
-	if err == nil {
+		port, parseErr := strconv.Atoi(strings.TrimSpace(portStr))
+		if parseErr != nil {
+			return host, 0
+		}
 		return host, port
 	}
-	return hostPort, ""
+	lastColon := strings.LastIndex(addr, ":")
+	if lastColon > 0 && lastColon < len(addr)-1 {
+		port, parseErr := strconv.Atoi(strings.TrimSpace(addr[lastColon+1:]))
+		if parseErr == nil {
+			return strings.TrimSpace(addr[:lastColon]), port
+		}
+	}
+	return strings.TrimSpace(addr), 0
 }
 
-func normalizeHeaderKey(key string) string {
-	key = strings.ToLower(key)
-	key = strings.ReplaceAll(key, "-", "_")
-	return "header_" + key
+func parentSpanIDFromContext(ctx context.Context) string {
+	parent := trace.SpanContextFromContext(ctx)
+	if !parent.IsValid() {
+		return ""
+	}
+	return parent.SpanID().String()
 }
