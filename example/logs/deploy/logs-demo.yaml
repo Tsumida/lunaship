@@ -19,6 +19,13 @@ spec:
         - name: logs-demo
           image: lunaship-logs-demo:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           ports:
             - name: http
               containerPort: 8080
@@ -43,6 +50,16 @@ spec:
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
+            - name: MYSQL_HOST
+              value: "192.168.0.120"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: "root"
+            - name: MYSQL_PASSWORD
+              value: "helloworld"
+            - name: MYSQL_DATABASE
+              value: "test"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -85,6 +102,13 @@ spec:
         - name: logs-demo
           image: lunaship-logs-demo:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           ports:
             - name: http
               containerPort: 8080
@@ -109,6 +133,16 @@ spec:
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
+            - name: MYSQL_HOST
+              value: "192.168.0.120"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: "root"
+            - name: MYSQL_PASSWORD
+              value: "helloworld"
+            - name: MYSQL_DATABASE
+              value: "test"
           volumeMounts:
             - name: tmp
               mountPath: /tmp

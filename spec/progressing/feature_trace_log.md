@@ -183,10 +183,11 @@ Example log:
 ```
 
 # Verification
-1. User executes `make build, make upload` and then import images into k3s (at `192.168.0.120`). 
-2. User the executes `make demo-logs` to apply or rollout the pods. 
-3. When pod is ready, we can use `kubectl logs -n test  <pod-name>` to check the logs. We should see the above fields in the log output.
-4. User opens Grafana, queries {_trace_id="xxxx"} in Loki, and clicks the 'Jaeger' button to see the full trace
+1. User executes `make demo-logs-mysql-up` to start local MySQL and run seed SQL (`example/logs/mysql/init.sql`).
+2. User executes `make build, make upload` and then import images into k3s (at `192.168.0.120`).
+3. User executes `make demo-logs` to apply or rollout the pods, and trigger RPC + MySQL verification calls (includes `GetSpot`).
+4. When pod is ready, we can use `kubectl logs -n test <pod-name>` to check the logs. We should see the required common/RPC/MySQL fields in the log output.
+5. User opens Grafana, queries `{_trace_id="xxxx"}` in Loki, and clicks the `Jaeger` button to see the full trace.
 
 ```json
 {

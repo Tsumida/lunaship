@@ -13,6 +13,7 @@ KUBECTL := kubectl
 NAMESPACE := test
 TOOL_IMAGE ?= busybox:1.37.0
 IMPORT ?= 0
+LOCAL_COMPOSE := $(PROJECT_ROOT)/example/logs/docker-compose.yaml
 
 pb:
 	@buf generate -v
@@ -32,7 +33,16 @@ import: upload
 	@ssh $(SSH_FLAGS) -p $(SSH_PORT) $(REMOTE_TARGET) "$(SUDO) k3s ctr images import $(REMOTE_TAR)"
 	@echo "imported image on $(REMOTE_TARGET)"
 
+mysql-up:
+	@docker-compose -f $(LOCAL_COMPOSE) up -d mysql
+	@echo "mysql is starting from $(LOCAL_COMPOSE)"
+
+mysql-down:
+	@docker-compose -f $(LOCAL_COMPOSE) stop mysql
+	@echo "mysql stopped"
+
 demo-logs:
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) mysql-up
 ifeq ($(IMPORT),1)
 	@$(MAKE) import
 else
@@ -53,4 +63,7 @@ endif
 		sh -c "wget -qO- --header \"Content-Type: application/json\" --header \"Connect-Protocol-Version: 1\" --post-data '$$JSON_OK' http://$$POD_A_IP:8080/logs.v1.DummyService/Transfer"; \
 	JSON_ERR=$$(printf '{"target":"logs-demo-bad:8080","endpoint":"/logs.v1.DummyService/Ping","request_json":"{}"}'); \
 	$(KUBECTL) -n $(NAMESPACE) run curl-logs-demo-error --image=$(TOOL_IMAGE) --restart=Never --rm -i -- \
-		sh -c "wget -qO- --header \"Content-Type: application/json\" --header \"Connect-Protocol-Version: 1\" --post-data '$$JSON_ERR' http://$$POD_A_IP:8080/logs.v1.DummyService/Transfer || true"
+		sh -c "wget -qO- --header \"Content-Type: application/json\" --header \"Connect-Protocol-Version: 1\" --post-data '$$JSON_ERR' http://$$POD_A_IP:8080/logs.v1.DummyService/Transfer || true"; \
+	JSON_DB=$$(printf '{"limit":5,"offset":0}'); \
+	$(KUBECTL) -n $(NAMESPACE) run curl-logs-demo-mysql --image=$(TOOL_IMAGE) --restart=Never --rm -i -- \
+		sh -c "wget -qO- --header \"Content-Type: application/json\" --header \"Connect-Protocol-Version: 1\" --post-data '$$JSON_DB' http://$$POD_A_IP:8080/logs.v1.DummyService/GetSpot"

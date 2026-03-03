@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	logsv1 "github.com/tsumida/lunaship/example/logs/gen"
 	"github.com/tsumida/lunaship/example/logs/gen/logsv1connect"
+	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
 	"github.com/tsumida/lunaship/log"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -82,6 +83,43 @@ func (s *DummyService) Transfer(
 
 	return connect.NewResponse(&logsv1.TransferResponse{
 		ResponseJson: string(respJSON),
+	}), nil
+}
+
+func (s *DummyService) GetSpot(
+	ctx context.Context,
+	req *connect.Request[logsv1.GetSpotRequest],
+) (*connect.Response[logsv1.GetSpotResponse], error) {
+	db := infra.GlobalMySQL()
+	if db == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("mysql is not initialized"))
+	}
+
+	limit := req.Msg.GetLimit()
+	if limit == 0 {
+		limit = 10
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := req.Msg.GetOffset()
+
+	var rows []SpotModel
+	if err := db.WithContext(ctx).
+		Order("id ASC").
+		Limit(int(limit)).
+		Offset(int(offset)).
+		Find(&rows).Error; err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	spots := make([]*logsv1.Spot, 0, len(rows))
+	for _, row := range rows {
+		spots = append(spots, toProtoSpot(row))
+	}
+
+	return connect.NewResponse(&logsv1.GetSpotResponse{
+		Spots: spots,
 	}), nil
 }
 

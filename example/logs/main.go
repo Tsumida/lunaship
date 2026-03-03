@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/tsumida/lunaship/interceptor"
 	"github.com/tsumida/lunaship/service"
 	"github.com/tsumida/lunaship/utils"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -21,6 +23,7 @@ func main() {
 		_ = os.Setenv("ERR_FILE", "./tmp/err.log")
 	}
 	bindAddr := utils.StrOrDefault(os.Getenv("BIND_ADDR"), ":8080")
+	mysqlConf := infra.LoadMySQLConfFromEnv(false)
 
 	path, handler := logsv1connect.NewDummyServiceHandler(
 		NewDummyService(),
@@ -37,5 +40,18 @@ func main() {
 		BindingAddress: bindAddr,
 	}
 
-	s.RunAfterInit(context.Background(), 10*time.Second)
+	s.RunAfterInit(context.Background(), 10*time.Second, func() error {
+		return infra.InitMySQL(
+			mysqlConf,
+			gorm.Config{
+				Logger: infra.NewMySQLGormLogger(mysqlConf),
+			},
+			func(db *gorm.DB) error {
+				if db == nil {
+					return fmt.Errorf("nil mysql db")
+				}
+				return nil
+			},
+		)
+	})
 }
