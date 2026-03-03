@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 	gormMySQL "gorm.io/driver/mysql"
@@ -169,6 +173,70 @@ func TestMySQLEndpointParse(t *testing.T) {
 	})
 }
 
+func TestMySQLGormLoggerTraceSpan(t *testing.T) {
+	t.Run("flow: trace emits mysql span without sql details", func(t *testing.T) {
+		// Description: SQL trace should create one mysql child span with whitelisted attributes only.
+		// Expectation: span contains target_type/remote.ip/remote.port/error.flag/duration.ms and no sql attributes.
+		logger, _ := newObservedMySQLLogger(t)
+		recorder := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider()
+		tp.RegisterSpanProcessor(recorder)
+		prevProvider := otel.GetTracerProvider()
+		otel.SetTracerProvider(tp)
+		defer otel.SetTracerProvider(prevProvider)
+
+		ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+		logger.Trace(
+			ctx,
+			time.Now().Add(-120*time.Millisecond),
+			func() (string, int64) { return "SELECT * FROM users", 1 },
+			nil,
+		)
+		parent.End()
+
+		spans := recorder.Ended()
+		mysqlSpan := findSpanByName(spans, "mysql.query")
+		if assert.NotNil(t, mysqlSpan, "mysql span should be emitted") {
+			attrs := attrsToMap(mysqlSpan.Attributes())
+			assert.Equal(t, "mysql", attrs["target_type"], "target type should be mysql")
+			assert.Equal(t, "192.168.0.104", attrs["remote.ip"], "remote ip should match DSN")
+			assert.EqualValues(t, int64(3306), attrs["remote.port"], "remote port should match DSN")
+			assert.Equal(t, false, attrs["error.flag"], "error flag should be false for successful query")
+			assert.Contains(t, attrs, "duration.ms", "duration attribute should exist")
+			assert.NotContains(t, attrs, "db.statement", "span should not leak sql statement")
+			assert.NotContains(t, attrs, "_sql", "span should not expose structured sql field")
+		}
+	})
+
+	t.Run("flow: trace marks span error for failed sql", func(t *testing.T) {
+		// Description: failed SQL trace should mark error flag in span attributes.
+		// Expectation: mysql span has error.flag=true.
+		logger, _ := newObservedMySQLLogger(t)
+		recorder := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider()
+		tp.RegisterSpanProcessor(recorder)
+		prevProvider := otel.GetTracerProvider()
+		otel.SetTracerProvider(tp)
+		defer otel.SetTracerProvider(prevProvider)
+
+		ctx, parent := otel.Tracer("test").Start(context.Background(), "parent")
+		logger.Trace(
+			ctx,
+			time.Now().Add(-200*time.Millisecond),
+			func() (string, int64) { return "UPDATE users SET name='x'", 1 },
+			errors.New("deadlock"),
+		)
+		parent.End()
+
+		spans := recorder.Ended()
+		mysqlSpan := findSpanByName(spans, "mysql.query")
+		if assert.NotNil(t, mysqlSpan, "mysql span should be emitted") {
+			attrs := attrsToMap(mysqlSpan.Attributes())
+			assert.Equal(t, true, attrs["error.flag"], "error flag should be true for failed query")
+		}
+	})
+}
+
 func newObservedMySQLLogger(t *testing.T) (*mysqlGormLogger, *observer.ObservedLogs) {
 	t.Helper()
 	core, observed := observer.New(zap.DebugLevel)
@@ -181,4 +249,21 @@ func newObservedMySQLLogger(t *testing.T) (*mysqlGormLogger, *observer.ObservedL
 		return zap.New(core)
 	}
 	return logger, observed
+}
+
+func findSpanByName(spans []sdktrace.ReadOnlySpan, name string) sdktrace.ReadOnlySpan {
+	for _, span := range spans {
+		if span.Name() == name {
+			return span
+		}
+	}
+	return nil
+}
+
+func attrsToMap(attrs []attribute.KeyValue) map[string]any {
+	values := make(map[string]any, len(attrs))
+	for _, attr := range attrs {
+		values[string(attr.Key)] = attr.Value.AsInterface()
+	}
+	return values
 }

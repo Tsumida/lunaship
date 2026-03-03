@@ -11,6 +11,10 @@ import (
 
 	driverMySQL "github.com/go-sql-driver/mysql"
 	"github.com/tsumida/lunaship/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	gormMySQL "gorm.io/driver/mysql"
 	gormLogger "gorm.io/gorm/logger"
@@ -74,11 +78,13 @@ func (l *mysqlGormLogger) Trace(ctx context.Context, begin time.Time, fc func() 
 	sqlText, _ := fc()
 	dur := time.Since(begin)
 	isSlow := l.slowThreshold > 0 && dur > l.slowThreshold
+	emitErr := err != nil && !errors.Is(err, gormLogger.ErrRecordNotFound)
+	l.emitTraceSpan(ctx, begin, dur, emitErr, err)
 
 	fields := l.sqlFields(sqlText, dur, isSlow)
 	logger := l.logger(ctx)
 
-	if err != nil && !errors.Is(err, gormLogger.ErrRecordNotFound) {
+	if emitErr {
 		if l.logLevel < gormLogger.Error {
 			return
 		}
@@ -97,6 +103,34 @@ func (l *mysqlGormLogger) Trace(ctx context.Context, begin time.Time, fc func() 
 		return
 	}
 	logger.Info(sqlLogMessage, fields...)
+}
+
+func (l *mysqlGormLogger) emitTraceSpan(
+	ctx context.Context,
+	begin time.Time,
+	dur time.Duration,
+	hasErr bool,
+	err error,
+) {
+	tracer := otel.Tracer("lunaship/mysql")
+	_, span := tracer.Start(
+		ctx,
+		"mysql.query",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithTimestamp(begin),
+		oteltrace.WithAttributes(
+			attribute.String("target_type", "mysql"),
+			attribute.String("remote.ip", l.instanceIP),
+			attribute.Int("remote.port", l.instancePort),
+			attribute.Bool("error.flag", hasErr),
+			attribute.Int64("duration.ms", dur.Milliseconds()),
+		),
+	)
+	if hasErr {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.End(oteltrace.WithTimestamp(begin.Add(dur)))
 }
 
 func (l *mysqlGormLogger) sqlFields(sqlText string, dur time.Duration, isSlow bool) []zap.Field {
