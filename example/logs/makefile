@@ -41,6 +41,8 @@ endif
 	@$(KUBECTL) apply -f $(PROJECT_ROOT)/example/logs/deploy/namespace.yaml
 	@$(KUBECTL) -n $(NAMESPACE) apply -f $(PROJECT_ROOT)/example/logs/deploy/jaeger-traefik.yaml
 	@$(KUBECTL) -n $(NAMESPACE) apply -f $(PROJECT_ROOT)/example/logs/deploy/logs-demo.yaml
+	@$(KUBECTL) -n $(NAMESPACE) rollout restart deployment/logs-demo-a
+	@$(KUBECTL) -n $(NAMESPACE) rollout restart deployment/logs-demo-b
 	@$(KUBECTL) -n $(NAMESPACE) rollout status deployment/logs-demo-a
 	@$(KUBECTL) -n $(NAMESPACE) rollout status deployment/logs-demo-b
 	@POD_A_IP=$$($(KUBECTL) -n $(NAMESPACE) get pod -l app=logs-demo,role=a -o jsonpath='{.items[0].status.podIP}'); \

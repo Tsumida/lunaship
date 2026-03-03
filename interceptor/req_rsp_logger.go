@@ -32,22 +32,15 @@ func NewLoggerInterceptor() connect.UnaryInterceptorFunc {
 				start = utils.NowInMs()
 			)
 			baseFields := make([]zap.Field, 0, 24)
-			callerIP, callerPort := parseAddress(req.Peer().Addr)
-			calleeApp, calleeIP, calleePort := log.AppIdentity()
 			baseFields = append(baseFields,
-				zap.String("_caller_ip", callerIP),
-				zap.Int("_caller_port", callerPort),
-				zap.String("_caller_app", ""),
-				zap.String("_callee_ip", calleeIP),
-				zap.Int("_callee_port", calleePort),
-				zap.String("_callee_app", calleeApp),
+				zap.String("_remote_service", remoteServiceFromHeader(req.Header().Get(remoteServiceHeader))),
+				zap.String("_remote_endpoint", req.Spec().Procedure),
+				zap.String("_remote_ip_port", req.Peer().Addr),
 				zap.String("_rpc_protocol", req.Peer().Protocol),
-				zap.String("_rpc_target", req.Spec().Procedure),
+				zap.String("_http_method", req.HTTPMethod()),
 				zap.Uint64("_start_ms", start),
 			)
-			ctx = log.WithFields(ctx, baseFields...)
-
-			logger := log.Logger(ctx)
+			logger := log.Logger(ctx).With(baseFields...)
 			if log.IsSampled(ctx) {
 				reqFields := borrowFields()
 				reqFields = append(reqFields, zap.Any("_parameters", req.Any()))

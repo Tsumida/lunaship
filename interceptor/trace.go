@@ -2,8 +2,6 @@ package interceptor
 
 import (
 	"context"
-	"net"
-	"strconv"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -13,8 +11,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
+
+const remoteServiceHeader = "X-Lunaship-Remote-Service"
 
 func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
@@ -24,8 +23,6 @@ func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 		) (connect.AnyResponse, error) {
 			span, ctx := startServerSpan(ctx, req)
 			defer span.End()
-
-			ctx = log.WithFields(ctx, requestBaseFields(req)...)
 
 			resp, err := next(ctx, req)
 			if err != nil {
@@ -92,6 +89,9 @@ func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	}
 	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
 	ctx = log.WithTrace(ctx, traceID, spanID, parentSpanID, sampled)
+	if callerApp, _, _ := log.AppIdentity(); callerApp != "" {
+		req.Header().Set(remoteServiceHeader, callerApp)
+	}
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header()))
 	return span, ctx
 }
@@ -103,50 +103,14 @@ func traceIdentifiers(sc trace.SpanContext) (traceID, spanID string, sampled boo
 	return sc.TraceID().String(), sc.SpanID().String(), sc.TraceFlags().IsSampled()
 }
 
-func requestBaseFields(req connect.AnyRequest) []zap.Field {
-	fields := make([]zap.Field, 0, 12)
-	callerIP, callerPort := parseAddress(req.Peer().Addr)
-	calleeApp, calleeIP, calleePort := log.AppIdentity()
-	fields = append(fields,
-		zap.String("_caller_ip", callerIP),
-		zap.Int("_caller_port", callerPort),
-		zap.String("_caller_app", ""),
-		zap.String("_callee_ip", calleeIP),
-		zap.Int("_callee_port", calleePort),
-		zap.String("_callee_app", calleeApp),
-		zap.String("_rpc_target", req.Spec().Procedure),
-		zap.String("_rpc_protocol", req.Peer().Protocol),
-		zap.String("_http_method", req.HTTPMethod()),
-	)
-	return fields
-}
-
-func parseAddress(addr string) (string, int) {
-	if addr == "" {
-		return "", 0
-	}
-	host, portStr, err := net.SplitHostPort(addr)
-	if err == nil {
-		port, parseErr := strconv.Atoi(strings.TrimSpace(portStr))
-		if parseErr != nil {
-			return host, 0
-		}
-		return host, port
-	}
-	lastColon := strings.LastIndex(addr, ":")
-	if lastColon > 0 && lastColon < len(addr)-1 {
-		port, parseErr := strconv.Atoi(strings.TrimSpace(addr[lastColon+1:]))
-		if parseErr == nil {
-			return strings.TrimSpace(addr[:lastColon]), port
-		}
-	}
-	return strings.TrimSpace(addr), 0
-}
-
 func parentSpanIDFromContext(ctx context.Context) string {
 	parent := trace.SpanContextFromContext(ctx)
 	if !parent.IsValid() {
 		return ""
 	}
 	return parent.SpanID().String()
+}
+
+func remoteServiceFromHeader(raw string) string {
+	return strings.TrimSpace(raw)
 }

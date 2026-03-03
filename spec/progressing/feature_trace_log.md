@@ -81,14 +81,15 @@ err:
 While service A(@192.168.0.101:8080) calls service B(@192.168.0.102:8081), both of them print respective logs.
 RPC logs should include the following additional fields:
 - `_dur_ms`: The duration of the RPC call in milliseconds. Optional, can be added by logging system if not provided. Type=int
-- `_caller_ip`: The IP address of the caller. Required. Type=string
-- `_caller_port`: The port number of the caller. Required. Type=int
-- `_caller_app`: The name of the caller service. Required. Type=string
-- `_callee_ip`: The IP address of the callee. Required. Type=string
-- `_callee_port`: The port number of the callee. Required. Type=int
-- `_callee_app`: The name of the callee service. Required. Type=string
+- `_remote_service`: The remote service name of this RPC call. Required. Zero-value can be empty for unknown/non-service callers. Type=string
+- `_remote_endpoint`: The remote endpoint/procedure involved in this RPC call. Required. Type=string
+- `_remote_ip_port`: The remote peer address in `ip:port` format for this RPC call. Required. Type=string
 
-For service A,  it prints:
+Note:
+- `_remote_*` fields are only for RPC request/response logs.
+- Non-RPC/common logs should not include `_remote_*` fields.
+
+For service A (server receives `Transfer`), it prints:
 ```json
 {
     "_level": "info",
@@ -96,12 +97,9 @@ For service A,  it prints:
     "_app_port": 8080,
     "_app": "A",
     "_env": "prod",
-    "_caller_ip": "192.168.0.101",
-    "_caller_port": 8080,
-    "_caller_app": "A",
-    "_callee_ip": "192.168.0.102",
-    "_callee_port": 8081,
-    "_callee_app": "B",
+    "_remote_service": "",
+    "_remote_endpoint": "/logs.v1.DummyService/Transfer",
+    "_remote_ip_port": "192.168.0.200:52001",
     "_msg": "RPC",
     "_trace_id": "1a2b3c4d5e6f7g8h9i0j",
     "_span_id": "1234567890abcdef",
@@ -109,7 +107,7 @@ For service A,  it prints:
     "_ts": 1771521635000,
 }
 ```
-For service B: 
+For service B (server receives `Ping` from service A): 
 ```json
 {
     "_level": "info",
@@ -117,12 +115,9 @@ For service B:
     "_app_port": 8081,
     "_app": "B",
     "_env": "prod",
-    "_caller_ip": "192.168.0.101",
-    "_caller_port": 8080,
-    "_caller_app": "A",
-    "_callee_ip": "192.168.0.102",
-    "_callee_port": 8081,
-    "_callee_app": "B",
+    "_remote_service": "A",
+    "_remote_endpoint": "/logs.v1.DummyService/Ping",
+    "_remote_ip_port": "192.168.0.101:53218",
     "_msg": "Called by service A",
     "_trace_id": "1a2b3c4d5e6f7g8h9i0j",
     "_span_id": "1234567890abcdef",
@@ -192,3 +187,31 @@ Example log:
 2. User the executes `make demo-logs` to apply or rollout the pods. 
 3. When pod is ready, we can use `kubectl logs -n test  <pod-name>` to check the logs. We should see the above fields in the log output.
 4. User opens Grafana, queries {_trace_id="xxxx"} in Loki, and clicks the 'Jaeger' button to see the full trace
+
+```json
+{
+    "_level": "error",
+    "_ts": 1772509886021,
+    "file": "interceptor/req_rsp_logger.go:63",
+    "_msg": "response",
+    "_trace_id": "fed7f32fb91b980af0803a4e6929325f",
+    "_span_id": "1d8cff653776a550",
+    "_remote_service": "",
+    "_remote_endpoint": "/logs.v1.DummyService/Transfer",
+    "_remote_ip_port": "10.42.0.225:44656",
+    "_rpc_protocol": "connect",
+    "_http_method": "POST",
+    "_start_ms": 1772509882928,
+    "_resp": null,
+    "_dur_ms": 3093,
+    "_err_code": "unavailable",
+    "_error": "unavailable: dial tcp 10.42.0.220:8080: connect: no route to host",
+    "_env": "",
+    "_app": "logs-demo-a",
+    "_app_ip": "",
+    "_app_port": 8080
+}
+```
+
+# Problems
+- No `_remote_service` since we have no service mapping yet. 
