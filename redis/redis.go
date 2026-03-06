@@ -46,7 +46,11 @@ func GlobalRedis() redis.UniversalClient {
 func InitRedis(ctx context.Context, conf *redis.UniversalOptions, timeout time.Duration, retry uint) error {
 	var err error
 	initGlobalRedis.Do(func() {
+		if conf == nil {
+			conf = LoadRedisConfigFromEnv()
+		}
 		globalRedis = redis.NewUniversalClient(conf)
+		globalRedis.AddHook(newRedisTraceLogHook(conf.Addrs))
 		err = utils.Retry(retry, timeout,
 			func() error {
 				e := globalRedis.Ping(ctx).Err()

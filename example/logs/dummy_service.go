@@ -5,17 +5,31 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"connectrpc.com/connect"
+	redis "github.com/redis/go-redis/v9"
 	logsv1 "github.com/tsumida/lunaship/example/logs/gen"
 	"github.com/tsumida/lunaship/example/logs/gen/logsv1connect"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
 	"github.com/tsumida/lunaship/log"
+	lunaredis "github.com/tsumida/lunaship/redis"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-type DummyService struct{}
+const (
+	redisDemoCounterKey = "logs_demo:get_spot:counter"
+	redisDemoLastReqKey = "logs_demo:get_spot:last_request"
+	redisDemoLuaScript  = `return redis.call("INCR", KEYS[1])`
+)
+
+type DummyService struct {
+	luaOnce sync.Once
+	luaErr  error
+	luaExec *lunaredis.LuaExecutor
+}
 
 func NewDummyService() *DummyService {
 	return &DummyService{}
@@ -90,6 +104,10 @@ func (s *DummyService) GetSpot(
 	ctx context.Context,
 	req *connect.Request[logsv1.GetSpotRequest],
 ) (*connect.Response[logsv1.GetSpotResponse], error) {
+	if err := s.exerciseRedis(ctx); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+
 	db := infra.GlobalMySQL()
 	if db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("mysql is not initialized"))
@@ -121,6 +139,36 @@ func (s *DummyService) GetSpot(
 	return connect.NewResponse(&logsv1.GetSpotResponse{
 		Spots: spots,
 	}), nil
+}
+
+func (s *DummyService) exerciseRedis(ctx context.Context) error {
+	client := lunaredis.GlobalRedis()
+	if client == nil {
+		return errors.New("redis is not initialized")
+	}
+	if err := client.Set(ctx, redisDemoLastReqKey, "GetSpot", 30*time.Second).Err(); err != nil {
+		return err
+	}
+	if _, err := client.Get(ctx, redisDemoLastReqKey).Result(); err != nil {
+		return err
+	}
+	if err := s.prepareRedisLua(ctx, client); err != nil {
+		return err
+	}
+	return s.luaExec.UpdateOneEvent(ctx, []string{redisDemoCounterKey})
+}
+
+func (s *DummyService) prepareRedisLua(ctx context.Context, client redis.UniversalClient) error {
+	s.luaOnce.Do(func() {
+		s.luaExec = lunaredis.NewLuaExecutor(
+			"logs_demo_get_spot",
+			client,
+			redisDemoLuaScript,
+			nil,
+		)
+		s.luaErr = s.luaExec.PrepareLuaScript(ctx)
+	})
+	return s.luaErr
 }
 
 func baseURL(targetAddr string) string {

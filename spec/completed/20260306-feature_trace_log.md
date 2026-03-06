@@ -8,6 +8,11 @@
 - Code of logging is under `interceptor/req_rsp_logger.go`, and we can modify it to include server and trace information.
 
 # Plan: 
+## Todo
+- [x] Define the log fields and rules for common/RPC/MySQL/Redis logs.
+- [x] Common logging with server and trace information.
+- [x] MySQL tracing and logging. 
+- [x] Redis tracing and logging.
 
 ## Logging with server and trace information. 
 
@@ -183,12 +188,13 @@ Example log:
 ```
 
 # Verification
-1. User executes `make demo-logs-mysql-up` to start local MySQL and run seed SQL (`example/logs/mysql/init.sql`).
+1. User executes `make -f example/logs/makefile mysql-up` and `make -f example/logs/makefile redis-up` to start local MySQL/Redis (`example/logs/docker-compose.yaml`), and run seed SQL (`example/logs/mysql/init.sql`).
 2. User executes `make build, make upload` and then import images into k3s (at `192.168.0.120`).
-3. User executes `make demo-logs` to apply or rollout the pods, and trigger RPC + MySQL verification calls (includes `GetSpot`).
+3. User executes `make demo-logs` to apply or rollout the pods, and trigger RPC + Redis + MySQL verification calls (includes `GetSpot`).
 4. When pod is ready, we can use `kubectl logs -n test <pod-name>` to check the logs. We should see the required common/RPC/MySQL fields in the log output.
 5. User opens Grafana, queries `{_trace_id="xxxx"}` in Loki, and clicks the `Jaeger` button to see the full trace.
 
+MySQL log example:
 ```json
 {
     "_level": "error",
@@ -211,6 +217,26 @@ Example log:
     "_app": "logs-demo-a",
     "_app_ip": "",
     "_app_port": 8080
+}
+```
+
+Redis log example:
+```json
+{
+    "_level": "info",
+    "_ts": 1772509886123,
+    "_msg": "REDIS",
+    "_trace_id": "fed7f32fb91b980af0803a4e6929325f",
+    "_span_id": "6f85f3319dd4de28",
+    "_instance_ip": "10.42.0.210",
+    "_instance_port": 6379,
+    "_redis_cmd": "evalsha",
+    "_redis_lua_sha": "abcdef1234567890",
+    "_dur_ms": 12,
+    "_env": "test",
+    "_app": "logs-demo-b",
+    "_app_ip": "",
+    "_app_port": 8081
 }
 ```
 

@@ -60,6 +60,8 @@ spec:
               value: "helloworld"
             - name: MYSQL_DATABASE
               value: "test"
+            - name: REDIS_ADDR
+              value: "192.168.0.120:6379"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -143,6 +145,8 @@ spec:
               value: "helloworld"
             - name: MYSQL_DATABASE
               value: "test"
+            - name: REDIS_ADDR
+              value: "192.168.0.120:6379"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
