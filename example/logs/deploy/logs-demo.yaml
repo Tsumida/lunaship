@@ -19,12 +19,23 @@ spec:
         - name: logs-demo
           image: lunaship-logs-demo:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           ports:
             - name: http
               containerPort: 8080
+            - name: metrics
+              containerPort: 9090
           env:
             - name: BIND_ADDR
               value: ":8080"
+            - name: PROMETHEUS_LISTEN_ADDR
+              value: ":9090"
             - name: TRACE_ENABLED
               value: "true"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -43,6 +54,18 @@ spec:
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
+            - name: MYSQL_HOST
+              value: "192.168.0.120"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: "root"
+            - name: MYSQL_PASSWORD
+              value: "helloworld"
+            - name: MYSQL_DATABASE
+              value: "test"
+            - name: REDIS_ADDR
+              value: "192.168.0.120:6379"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -55,6 +78,13 @@ kind: Service
 metadata:
   name: logs-demo-a
   namespace: test
+  labels:
+    app: logs-demo
+    role: a
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9090"
 spec:
   selector:
     app: logs-demo
@@ -63,6 +93,9 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -85,12 +118,23 @@ spec:
         - name: logs-demo
           image: lunaship-logs-demo:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           ports:
             - name: http
               containerPort: 8080
+            - name: metrics
+              containerPort: 9090
           env:
             - name: BIND_ADDR
               value: ":8080"
+            - name: PROMETHEUS_LISTEN_ADDR
+              value: ":9090"
             - name: TRACE_ENABLED
               value: "true"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -109,6 +153,18 @@ spec:
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
+            - name: MYSQL_HOST
+              value: "192.168.0.120"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: "root"
+            - name: MYSQL_PASSWORD
+              value: "helloworld"
+            - name: MYSQL_DATABASE
+              value: "test"
+            - name: REDIS_ADDR
+              value: "192.168.0.120:6379"
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -121,6 +177,13 @@ kind: Service
 metadata:
   name: logs-demo-b
   namespace: test
+  labels:
+    app: logs-demo
+    role: b
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /metrics
+    prometheus.io/port: "9090"
 spec:
   selector:
     app: logs-demo
@@ -129,3 +192,6 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090

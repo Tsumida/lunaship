@@ -12,6 +12,7 @@ const (
 	fieldsKey contextKey = iota
 	traceIDKey
 	spanIDKey
+	parentSpanIDKey
 	sampledKey
 )
 
@@ -34,14 +35,18 @@ func FieldsFromContext(ctx context.Context) []zap.Field {
 	return fields
 }
 
-func WithTrace(ctx context.Context, traceID, spanID string, sampled bool) context.Context {
+func WithTrace(ctx context.Context, traceID, spanID, parentSpanID string, sampled bool) context.Context {
 	if traceID != "" {
 		ctx = context.WithValue(ctx, traceIDKey, traceID)
-		ctx = WithFields(ctx, zap.String("trace_id", traceID))
+		ctx = WithFields(ctx, zap.String("_trace_id", traceID))
 	}
 	if spanID != "" {
 		ctx = context.WithValue(ctx, spanIDKey, spanID)
-		ctx = WithFields(ctx, zap.String("span_id", spanID))
+		ctx = WithFields(ctx, zap.String("_span_id", spanID))
+	}
+	if parentSpanID != "" {
+		ctx = context.WithValue(ctx, parentSpanIDKey, parentSpanID)
+		ctx = WithFields(ctx, zap.String("_parent_span_id", parentSpanID))
 	}
 	ctx = context.WithValue(ctx, sampledKey, sampled)
 	return ctx

@@ -16,7 +16,47 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+func initEnv() {
+	// ENV BIND_ADDR=""
+	// ENV ERR_FILE=""
+	// ENV JAEGER_AGENT_HOST=""
+	// ENV JAEGER_AGENT_PORT=""
+	// ENV JAEGER_COLLECTOR_ENDPOINT=""
+	// ENV JAEGER_SERVICE_NAME=""
+	// ENV JWT_MAILBOX_KEY=""
+	// ENV LOG_FILE=""
+	// ENV MYSQL_DATABASE=""
+	// ENV MYSQL_HOST=""
+	// ENV MYSQL_PASSWORD=""
+	// ENV MYSQL_PORT=""
+	// ENV MYSQL_USER=""
+	// ENV OTEL_EXPORTER_OTLP_ENDPOINT=""
+	// ENV OTEL_EXPORTER_OTLP_PROTOCOL=""
+	// ENV OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
+	// ENV OTEL_SERVICE_NAME=""
+	// ENV PROMETHEUS_LISTEN_ADDR=""
+	// ENV REDIS_ADDR=""
+	// ENV REDIS_PWD=""
+	// ENV SERVICE_DOC=""
+	// ENV SERVICE_ID=""
+	// ENV SERVICE_VERSION=""
+	os.Setenv("BIND_ADDR", "0.0.0.0:8080")
+	os.Setenv("MYSQL_HOST", "127.0.0.1")
+	os.Setenv("MYSQL_PORT", "3306")
+	os.Setenv("MYSQL_USER", "root")
+	os.Setenv("MYSQL_PASSWORD", "helloworld")
+	os.Setenv("MYSQL_DATABASE", "test")
+	os.Setenv("REDIS_ADDR", "127.0.0.1:6379")
+	os.Setenv("REDIS_PWD", "")
+	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4317")
+	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://127.0.0.1:4318/v1/traces")
+	os.Setenv("JAEGER_AGENT_HOST", "127.0.0.1")
+	os.Setenv("JAEGER_AGENT_PORT", "6831")
+	os.Setenv("JAEGER_COLLECTOR_ENDPOINT", "http://127.0.0.1:4318")
+}
 func TestMain(m *testing.M) {
+	initEnv()
+
 	_ = log.InitLog(
 		utils.StrOrDefault(os.Getenv("LOG_FILE"), "../tmp/log.log"),
 		utils.StrOrDefault(os.Getenv("ERR_FILE"), "../tmp/err.log"),

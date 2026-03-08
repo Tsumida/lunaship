@@ -2,8 +2,6 @@ package interceptor
 
 import (
 	"context"
-	"net"
-	"net/http"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -13,21 +11,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
-var (
-	loggedHeaderKeys = []string{
-		"x-request-id",
-		"x-device-ip",
-		"x-forwarded-for",
-		"x-real-ip",
-		"user-agent",
-		"content-type",
-		"traceparent",
-		"uber-trace-id",
-	}
-)
+const remoteServiceHeader = "X-Lunaship-Remote-Service"
 
 func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 	interceptor := func(next connect.UnaryFunc) connect.UnaryFunc {
@@ -37,8 +23,6 @@ func NewTraceInterceptor() connect.UnaryInterceptorFunc {
 		) (connect.AnyResponse, error) {
 			span, ctx := startServerSpan(ctx, req)
 			defer span.End()
-
-			ctx = log.WithFields(ctx, requestBaseFields(req)...)
 
 			resp, err := next(ctx, req)
 			if err != nil {
@@ -75,6 +59,7 @@ func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	tracer := otel.Tracer("lunaship/trace")
 	propagator := otel.GetTextMapPropagator()
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(req.Header()))
+	parentSpanID := parentSpanIDFromContext(ctx)
 
 	spanName := req.Spec().Procedure
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindServer))
@@ -86,13 +71,14 @@ func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	}
 
 	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
-	ctx = log.WithTrace(ctx, traceID, spanID, sampled)
+	ctx = log.WithTrace(ctx, traceID, spanID, parentSpanID, sampled)
 	return span, ctx
 }
 
 func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
 	tracer := otel.Tracer("lunaship/trace")
 	spanName := req.Spec().Procedure
+	parentSpanID := parentSpanIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
@@ -100,6 +86,11 @@ func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 	)
 	if method := req.HTTPMethod(); method != "" {
 		span.SetAttributes(attribute.String("http.method", method))
+	}
+	traceID, spanID, sampled := traceIdentifiers(span.SpanContext())
+	ctx = log.WithTrace(ctx, traceID, spanID, parentSpanID, sampled)
+	if callerApp, _, _ := log.AppIdentity(); callerApp != "" {
+		req.Header().Set(remoteServiceHeader, callerApp)
 	}
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header()))
 	return span, ctx
@@ -112,72 +103,14 @@ func traceIdentifiers(sc trace.SpanContext) (traceID, spanID string, sampled boo
 	return sc.TraceID().String(), sc.SpanID().String(), sc.TraceFlags().IsSampled()
 }
 
-func requestBaseFields(req connect.AnyRequest) []zap.Field {
-	fields := make([]zap.Field, 0, 12)
-	if deviceIP := hostOnly(req.Peer().Addr); deviceIP != "" {
-		fields = append(fields, zap.String("device_ip", deviceIP))
-	}
-
-	serverHost, serverPort := serverHostPort(req.Header())
-	if serverHost != "" {
-		fields = append(fields, zap.String("server_ip", serverHost))
-	}
-	if serverPort != "" {
-		fields = append(fields, zap.String("server_port", serverPort))
-	}
-	fields = append(fields,
-		zap.String("server_endpoint", req.Spec().Procedure),
-		zap.String("http_method", req.HTTPMethod()),
-	)
-
-	fields = append(fields, headerFields(req.Header())...)
-	return fields
-}
-
-func hostOnly(addr string) string {
-	if addr == "" {
+func parentSpanIDFromContext(ctx context.Context) string {
+	parent := trace.SpanContextFromContext(ctx)
+	if !parent.IsValid() {
 		return ""
 	}
-	host, _, err := net.SplitHostPort(addr)
-	if err == nil {
-		return host
-	}
-	return addr
+	return parent.SpanID().String()
 }
 
-func serverHostPort(header http.Header) (string, string) {
-	hostPort := strings.TrimSpace(header.Get("X-Forwarded-Host"))
-	if hostPort == "" {
-		hostPort = strings.TrimSpace(header.Get("Host"))
-	}
-	if hostPort == "" {
-		return "", ""
-	}
-	if strings.Contains(hostPort, ",") {
-		parts := strings.Split(hostPort, ",")
-		hostPort = strings.TrimSpace(parts[0])
-	}
-	host, port, err := net.SplitHostPort(hostPort)
-	if err == nil {
-		return host, port
-	}
-	return hostPort, ""
-}
-
-func headerFields(header http.Header) []zap.Field {
-	fields := make([]zap.Field, 0, len(loggedHeaderKeys))
-	for _, key := range loggedHeaderKeys {
-		value := strings.TrimSpace(header.Get(key))
-		if value == "" {
-			continue
-		}
-		fields = append(fields, zap.String(normalizeHeaderKey(key), value))
-	}
-	return fields
-}
-
-func normalizeHeaderKey(key string) string {
-	key = strings.ToLower(key)
-	key = strings.ReplaceAll(key, "-", "_")
-	return "header_" + key
+func remoteServiceFromHeader(raw string) string {
+	return strings.TrimSpace(raw)
 }

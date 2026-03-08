@@ -21,13 +21,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-var traceIDRegexp = regexp.MustCompile(`trace_id[^0-9a-fA-F]*([0-9a-fA-F]+)`)
+var traceIDRegexp = regexp.MustCompile(`_trace_id[^0-9a-fA-F]*([0-9a-fA-F]+)`)
 
 // Description:
 // Start two services (A -> B). Service A receives a request and calls service B.
 //
 // Expectation:
-// Log entries from service A and service B share the same trace_id.
+// Log entries from service A and service B share the same _trace_id.
 func TestTracePropagationRPC(t *testing.T) {
 	logPath := initTestLogger(t)
 	initTestTracer(t)
@@ -51,7 +51,7 @@ func TestTracePropagationRPC(t *testing.T) {
 
 	t.Run("flow: service_a calls service_b", func(t *testing.T) {
 		// Description: service A receives a request and calls service B.
-		// Expectation: both services log the same trace_id.
+		// Expectation: both services log the same _trace_id.
 		_, err := clientToA.CallUnary(context.Background(), connect.NewRequest(&emptypb.Empty{}))
 		assert.NoError(t, err)
 		_ = log.GlobalLog().Sync()
@@ -64,7 +64,7 @@ func TestTracePropagationRPC(t *testing.T) {
 		assert.Equal(t, traceA, traceB)
 		t.Logf("service_a log: %s", lineA)
 		t.Logf("service_b log: %s", lineB)
-		t.Logf("service_a trace_id=%s service_b trace_id=%s", traceA, traceB)
+		t.Logf("service_a _trace_id=%s service_b _trace_id=%s", traceA, traceB)
 	})
 }
 
@@ -146,5 +146,5 @@ func traceIDFromLogFile(logPath, target string) (string, string, error) {
 			return match[1], line, nil
 		}
 	}
-	return "", "", fmt.Errorf("trace_id not found for target %s", target)
+	return "", "", fmt.Errorf("_trace_id not found for target %s", target)
 }

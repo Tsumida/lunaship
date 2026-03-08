@@ -29,7 +29,7 @@ func LoadMySQLConfFromEnv(debug bool) mysql.Config {
 		pwd    = utils.StrOrDefault(os.Getenv("MYSQL_PASSWORD"), "helloworld")
 		host   = utils.StrOrDefault(os.Getenv("MYSQL_HOST"), "192.168.0.120")
 		port   = utils.StrOrDefault(os.Getenv("MYSQL_PORT"), "3306")
-		dbName = utils.StrOrDefault(os.Getenv("MYSQL_DATABASE"), "metaserver")
+		dbName = utils.StrOrDefault(os.Getenv("MYSQL_DATABASE"), "test")
 	)
 
 	dsn := fmt.Sprintf(

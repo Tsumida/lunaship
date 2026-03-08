@@ -29,10 +29,36 @@ message TransferResponse {
 }
 
 // 
+message GetSpotRequest {
+  uint64 limit = 1;
+  uint64 offset = 2;
+}
+
+// 
+message Spot {
+  uint64 id = 1;
+  uint64 account_id = 2;
+  string currency = 3;
+  string deposit = 4;
+  string frozen = 5;
+  uint64 version = 6;
+  uint64 create_time = 7;
+  uint64 update_time = 8;
+}
+
+// 
+message GetSpotResponse {
+  repeated Spot spots = 1;
+}
+
+// 
 service DummyService {
   // 
   rpc Ping(PingRequest) returns (PingResponse);
 
   // 
   rpc Transfer(TransferRequest) returns (TransferResponse);
+
+  // 
+  rpc GetSpot(GetSpotRequest) returns (GetSpotResponse);
 }

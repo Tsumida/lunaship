@@ -34,15 +34,17 @@ func getWriter(filename string) io.Writer {
 
 // 初始化日志 logger
 func InitLog(logPath, errPath string, logLevel zapcore.Level) *zap.Logger {
+	defaults := defaultInjectedFieldsFromEnv()
+
 	config := zapcore.EncoderConfig{
-		MessageKey:   "msg",                       //结构化（json）输出：msg的key
-		LevelKey:     "level",                     //结构化（json）输出：日志级别的key（INFO，WARN，ERROR等）
-		TimeKey:      "ts",                        //结构化（json）输出：时间的key（INFO，WARN，ERROR等）
-		CallerKey:    "file",                      //结构化（json）输出：打印日志的文件对应的Key
-		EncodeLevel:  zapcore.CapitalLevelEncoder, //将日志级别转换成大写（INFO，WARN，ERROR等）
-		EncodeCaller: zapcore.ShortCallerEncoder,  //采用短文件路径编码输出（test/main.go:14 ）
+		MessageKey:   "_msg",                        //结构化（json）输出：msg的key
+		LevelKey:     "_level",                      //结构化（json）输出：日志级别的key（INFO，WARN，ERROR等）
+		TimeKey:      "_ts",                         //结构化（json）输出：时间的key（INFO，WARN，ERROR等）
+		CallerKey:    "file",                        //结构化（json）输出：打印日志的文件对应的Key
+		EncodeLevel:  zapcore.LowercaseLevelEncoder, //将日志级别转换成小写（info，warn，error等）
+		EncodeCaller: zapcore.ShortCallerEncoder,    //采用短文件路径编码输出（test/main.go:14 ）
 		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.UTC().Format(time.RFC3339))
+			enc.AppendInt64(t.UTC().UnixMilli())
 		}, //输出的时间格式
 		EncodeDuration: func(d time.Duration, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendInt64(int64(d) / 1000000)
@@ -72,7 +74,7 @@ func InitLog(logPath, errPath string, logLevel zapcore.Level) *zap.Logger {
 			logLevel),
 	}
 
-	core := zapcore.NewTee(outputList...)
+	core := newRequiredFieldsCore(zapcore.NewTee(outputList...), defaults)
 	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
 	return logger
 }
