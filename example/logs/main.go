@@ -31,6 +31,7 @@ func main() {
 		NewDummyService(),
 		connect.WithRecover(infra.RecoverFn),
 		connect.WithInterceptors(
+			interceptor.NewMetricsInterceptor(),
 			interceptor.NewTraceInterceptor(),
 			interceptor.NewLoggerInterceptor(),
 		),
@@ -42,21 +43,27 @@ func main() {
 		BindingAddress: bindAddr,
 	}
 
-	s.RunAfterInit(context.Background(), 10*time.Second, func() error {
-		if err := infra.InitMySQL(
-			mysqlConf,
-			gorm.Config{
-				Logger: infra.NewMySQLGormLogger(mysqlConf),
-			},
-			func(db *gorm.DB) error {
-				if db == nil {
-					return fmt.Errorf("nil mysql db")
-				}
-				return nil
-			},
-		); err != nil {
-			return err
-		}
-		return redis.InitRedis(context.Background(), redisConf, time.Second, 2)
-	})
+	s.RunAfterInit(context.Background(), 10*time.Second,
+		func() error {
+			infra.InitMetricAsync(infra.PROMETHEUS_LISTEN_ADDR)
+			return nil
+		},
+		func() error {
+			if err := infra.InitMySQL(
+				mysqlConf,
+				gorm.Config{
+					Logger: infra.NewMySQLGormLogger(mysqlConf),
+				},
+				func(db *gorm.DB) error {
+					if db == nil {
+						return fmt.Errorf("nil mysql db")
+					}
+					return nil
+				},
+			); err != nil {
+				return err
+			}
+			return redis.InitRedis(context.Background(), redisConf, time.Second, 2)
+		},
+	)
 }
