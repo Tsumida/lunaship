@@ -135,3 +135,52 @@
   - Mitigation: enforce static procedure path usage; reject dynamic path templates.
 - Risk: metrics endpoint port conflicts.
   - Mitigation: allow configurable `PROMETHEUS_LISTEN_ADDR` per environment/test.
+
+# Problems and solutions (implementation record)
+
+## Problem 1: Metrics existed but Grafana had no series from `test` namespace
+
+- Symptom:
+  - Imported Go Processes dashboard (ID=6671) showed no data for `namespace="test"`.
+- Root cause:
+  - Prometheus was configured by kube-prometheus-stack to select `ServiceMonitor` objects with label `release=kube-prometheus-stack`.
+  - `logs-demo` in `test` namespace had no matching `ServiceMonitor`, so targets were not discovered.
+- Solution:
+  - Added `ServiceMonitor` at `example/logs/deploy/logs-demo-servicemonitor.yaml` with:
+    - namespace `test`
+    - selector `app=logs-demo`
+    - endpoint `port: metrics`, `path: /metrics`
+    - label `release: kube-prometheus-stack`
+  - Added service labels/annotations in `example/logs/deploy/logs-demo.yaml` for both `logs-demo-a` and `logs-demo-b`.
+  - Updated `example/logs/makefile` to apply `logs-demo-servicemonitor.yaml` when CRD exists.
+
+## Problem 2: Need explicit metrics exposure on port 9090
+
+- Symptom:
+  - Requirement to ensure Prometheus endpoint is always exposed by container and deployment.
+- Solution:
+  - Dockerfile:
+    - `EXPOSE 9090` (already present).
+    - Set default `PROMETHEUS_LISTEN_ADDR=":9090"` in `example/logs/Dockerfile`.
+  - Deployment/Service:
+    - Added container port `9090` (`name: metrics`) for both services.
+    - Added service port `9090` (`name: metrics`) for both services.
+    - Added env `PROMETHEUS_LISTEN_ADDR=:9090` for both deployments.
+
+## Verification evidence
+
+- Service-level exposure:
+  - `http://logs-demo-a:9090/metrics` returns `go_*` runtime metrics.
+- Prometheus target discovery:
+  - Scrape pool includes `serviceMonitor/test/logs-demo/0` with `health=up`.
+- Query-level validation:
+  - `go_goroutines{namespace="test"}` returns time series for:
+    - `logs-demo-a`
+    - `logs-demo-b`
+
+## Final status
+
+- Request metrics instrumentation: completed.
+- Metrics endpoint exposure (`9090`) in Dockerfile and deployment: completed.
+- Prometheus scraping for `test` namespace services: completed.
+- Ready for Grafana dashboard binding (Go Processes ID=6671).
