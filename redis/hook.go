@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"strings"
@@ -76,12 +77,14 @@ func (h *redisTraceLogHook) ProcessPipelineHook(next redis.ProcessPipelineHook) 
 
 		err := next(ctx, cmds)
 		dur := time.Since(begin)
-		if err != nil {
+		isNilReply := isRedisNilReply(err)
+		if err != nil && !isNilReply {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}
 		span.SetAttributes(
-			attribute.Bool("error.flag", err != nil),
+			attribute.Bool("error.flag", err != nil && !isNilReply),
+			attribute.Bool("redis.nil_reply", isNilReply),
 			attribute.Int64("duration.ms", dur.Milliseconds()),
 		)
 		span.End(oteltrace.WithTimestamp(begin.Add(dur)))
@@ -93,8 +96,13 @@ func (h *redisTraceLogHook) ProcessPipelineHook(next redis.ProcessPipelineHook) 
 			zap.Int64("_dur_ms", dur.Milliseconds()),
 		}
 		if err != nil {
-			fields = append(fields, zap.NamedError("_error", err))
-			log.Logger(ctx).Error(redisLogMessage, fields...)
+			if isNilReply {
+				fields = append(fields, zap.Bool("_redis_nil_reply", true))
+				log.Logger(ctx).Info(redisLogMessage, fields...)
+			} else {
+				fields = append(fields, zap.NamedError("_error", err))
+				log.Logger(ctx).Error(redisLogMessage, fields...)
+			}
 			return err
 		}
 		log.Logger(ctx).Info(redisLogMessage, fields...)
@@ -103,18 +111,20 @@ func (h *redisTraceLogHook) ProcessPipelineHook(next redis.ProcessPipelineHook) 
 }
 
 func (h *redisTraceLogHook) endCommandSpan(span oteltrace.Span, cmd redis.Cmder, dur time.Duration, err error) {
+	isNilReply := isRedisNilReply(err)
 	span.SetAttributes(
 		attribute.String("target_type", "redis"),
 		attribute.String("remote.ip", h.instanceIP),
 		attribute.Int("remote.port", h.instancePort),
 		attribute.String("redis.command", commandName(cmd)),
-		attribute.Bool("error.flag", err != nil),
+		attribute.Bool("error.flag", err != nil && !isNilReply),
+		attribute.Bool("redis.nil_reply", isNilReply),
 		attribute.Int64("duration.ms", dur.Milliseconds()),
 	)
 	if sha := luaSHAFromCommand(cmd); sha != "" {
 		span.SetAttributes(attribute.String("lua.sha", sha))
 	}
-	if err != nil {
+	if err != nil && !isNilReply {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}
@@ -132,11 +142,20 @@ func (h *redisTraceLogHook) logCommand(ctx context.Context, cmd redis.Cmder, dur
 		fields = append(fields, zap.String("_redis_lua_sha", sha))
 	}
 	if err != nil {
-		fields = append(fields, zap.NamedError("_error", err))
-		log.Logger(ctx).Error(redisLogMessage, fields...)
+		if isRedisNilReply(err) {
+			fields = append(fields, zap.Bool("_redis_nil_reply", true))
+			log.Logger(ctx).Info(redisLogMessage, fields...)
+		} else {
+			fields = append(fields, zap.NamedError("_error", err))
+			log.Logger(ctx).Error(redisLogMessage, fields...)
+		}
 		return
 	}
 	log.Logger(ctx).Info(redisLogMessage, fields...)
+}
+
+func isRedisNilReply(err error) bool {
+	return err != nil && errors.Is(err, redis.Nil)
 }
 
 func commandName(cmd redis.Cmder) string {

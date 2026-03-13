@@ -115,7 +115,7 @@ func (l *mysqlGormLogger) emitTraceSpan(
 	tracer := otel.Tracer("lunaship/mysql")
 	_, span := tracer.Start(
 		ctx,
-		"mysql.query",
+		"mysql",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithTimestamp(begin),
 		oteltrace.WithAttributes(
