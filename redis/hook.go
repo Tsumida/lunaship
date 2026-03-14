@@ -32,7 +32,7 @@ func newRedisTraceLogHook(addrs []string) *redisTraceLogHook {
 	return &redisTraceLogHook{
 		instanceIP:   instanceIP,
 		instancePort: instancePort,
-		tracer:       otel.Tracer("lunaship/redis"),
+		tracer:       otel.Tracer("Redis"),
 	}
 }
 

@@ -20,6 +20,12 @@ Lunaship use `connect-go` as RPC framework.
 
 # Spec driven development
 
+## Specification management
 - `spec/progressing/` for features\fix that are currently being worked on.
 - `spec/archived/` for features\fix that are no longer being worked on, but may be useful for reference in the future.
 - `spec/completed/` for features\fix that have been completed and are ready for use.
+
+## Coding guidelines
+
+- `spec/code_style.md` for code style and best practices.
+- `spec/sql_standard.md` for SQL writing standard.

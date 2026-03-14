@@ -112,7 +112,7 @@ func (l *mysqlGormLogger) emitTraceSpan(
 	hasErr bool,
 	err error,
 ) {
-	tracer := otel.Tracer("lunaship/mysql")
+	tracer := otel.Tracer("MySQL")
 	_, span := tracer.Start(
 		ctx,
 		"mysql",

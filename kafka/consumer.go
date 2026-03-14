@@ -169,15 +169,3 @@ func NewConsumerWrapper(name string, f MsgHandlerFunc) *ConsumerWrapper {
 		handler: f,
 	}
 }
-
-func DefaultConfig() *sarama.Config {
-	cfg := sarama.NewConfig()
-	// ack = -1, insync replicas=all
-	// autocommit = false
-	cfg.Producer.RequiredAcks = sarama.WaitForAll
-	cfg.Producer.Retry.Max = 3
-	cfg.Producer.Return.Successes = true
-	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
-	cfg.Consumer.Offsets.AutoCommit.Enable = false
-	return cfg
-}
