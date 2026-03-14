@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/tsumida/lunaship/log"
@@ -29,6 +30,7 @@ func (c *KafkaConsumer) Start(
 	cfg *sarama.Config,
 	consumer *ConsumerWrapper,
 ) error {
+	RegisterConsumerMetrics()
 	keepRunning := true
 	l := log.GlobalLog().With(
 		zap.String("brokers", c.Brokers), zap.String("consumer_group", c.ConsumerGroup), zap.String("topic", c.Topic),
@@ -48,6 +50,7 @@ func (c *KafkaConsumer) Start(
 		cancel()
 		return errors.New("kafka consumer handler is nil")
 	}
+	consumer.bindRuntime(c.ConsumerGroup)
 
 	// ensure we have a fresh ready channel before starting the loop
 	consumer.ready = make(chan bool)
@@ -101,10 +104,13 @@ func (c *KafkaConsumer) Start(
 
 type MsgHandlerFunc func(session sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error
 
+type ContextMsgHandlerFunc func(ctx context.Context, session sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error
+
 type ConsumerWrapper struct {
-	name    string
-	ready   chan bool
-	handler MsgHandlerFunc
+	name          string
+	ready         chan bool
+	handler       ContextMsgHandlerFunc
+	consumerGroup string
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -124,8 +130,6 @@ func (consumer *ConsumerWrapper) Cleanup(sarama.ConsumerGroupSession) error {
 // loop and exit.
 func (consumer *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	l := log.GlobalLog().With(zap.String("consumer_name", consumer.name))
-	// todo: use sync.Pool
-	logTags := make([]zap.Field, 0, 12)
 
 	// NOTE:
 	// Do not move the code below to a goroutine.
@@ -138,21 +142,7 @@ func (consumer *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSessio
 				l.Info("message channel was closed")
 				return nil
 			}
-			logTags = append(
-				logTags,
-				zap.String("consumer", consumer.name),
-				zap.String("topic", message.Topic),
-				zap.Int32("partition", message.Partition),
-				zap.Int64("offset", message.Offset),
-			)
-			l.Info("consume msg", logTags...)
-			if consumer.handler != nil {
-				if err := consumer.handler(session, message); err != nil {
-					logTags = append(logTags, zap.Error(err))
-					l.Error("message handler error", zap.Error(err))
-				}
-			}
-			logTags = logTags[:0]
+			consumer.consumeMessage(session.Context(), session, message)
 		// Should return when `session.Context()` is done.
 		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
 		// https://github.com/IBM/sarama/issues/1192
@@ -164,8 +154,48 @@ func (consumer *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSessio
 
 func NewConsumerWrapper(name string, f MsgHandlerFunc) *ConsumerWrapper {
 	return &ConsumerWrapper{
+		name:  name,
+		ready: make(chan bool),
+		handler: func(_ context.Context, session sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
+			if f == nil {
+				return nil
+			}
+			return f(session, msg)
+		},
+	}
+}
+
+func NewContextConsumerWrapper(name string, f ContextMsgHandlerFunc) *ConsumerWrapper {
+	return &ConsumerWrapper{
 		name:    name,
 		ready:   make(chan bool),
 		handler: f,
 	}
+}
+
+func (consumer *ConsumerWrapper) bindRuntime(consumerGroup string) {
+	consumer.consumerGroup = strings.TrimSpace(consumerGroup)
+}
+
+func (consumer *ConsumerWrapper) consumeMessage(
+	baseCtx context.Context,
+	session sarama.ConsumerGroupSession,
+	message *sarama.ConsumerMessage,
+) {
+	ctx, span, metadata := startConsumerInstrumentation(baseCtx, consumer.name, consumer.consumerGroup, message)
+	start := metadata.startedAt
+	err := consumer.handleMessage(ctx, session, message)
+	finishConsumerInstrumentation(ctx, span, err, time.Since(start))
+	recordConsumerMetrics(metadata, err)
+}
+
+func (consumer *ConsumerWrapper) handleMessage(
+	ctx context.Context,
+	session sarama.ConsumerGroupSession,
+	message *sarama.ConsumerMessage,
+) error {
+	if consumer.handler == nil {
+		return nil
+	}
+	return consumer.handler(ctx, session, message)
 }
