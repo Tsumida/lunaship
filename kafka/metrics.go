@@ -24,11 +24,31 @@ var (
 		},
 		[]string{"kafka_instance", "topic", "partition", "consumer_group", "app", "error_type"},
 	)
+
+	kafkaProduceDurationMs = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "kafka_produce_duration_ms",
+			Help: "Latest Kafka producer message publish duration in milliseconds.",
+		},
+		[]string{"kafka_instance", "topic", "partition", "app"},
+	)
+	kafkaProduceErrorCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "kafka_produce_error_count",
+			Help: "Kafka producer message publish errors by error type.",
+		},
+		[]string{"kafka_instance", "topic", "partition", "app", "error_type"},
+	)
 )
 
 func RegisterConsumerMetrics() {
 	registerKafkaCollector(kafkaConsumeDurationMs)
 	registerKafkaCollector(kafkaConsumeErrorCount)
+}
+
+func RegisterProducerMetrics() {
+	registerKafkaCollector(kafkaProduceDurationMs)
+	registerKafkaCollector(kafkaProduceErrorCount)
 }
 
 func recordConsumerMetrics(metadata consumerMessageMetadata, err error) {
@@ -46,6 +66,23 @@ func recordConsumerMetrics(metadata consumerMessageMetadata, err error) {
 	if err != nil {
 		errorLabels := append(labels, consumerErrorType(err))
 		kafkaConsumeErrorCount.WithLabelValues(errorLabels...).Inc()
+	}
+}
+
+func recordProducerMetrics(metadata producerMessageMetadata, partition int32, err error) {
+	labels := []string{
+		metadata.kafkaInstance,
+		metadata.topic,
+		strconv.FormatInt(int64(partition), 10),
+		metadata.appName,
+	}
+
+	durationMs := float64(time.Since(metadata.startedAt)) / float64(time.Millisecond)
+	kafkaProduceDurationMs.WithLabelValues(labels...).Set(durationMs)
+
+	if err != nil {
+		errorLabels := append(labels, consumerErrorType(err))
+		kafkaProduceErrorCount.WithLabelValues(errorLabels...).Inc()
 	}
 }
 

@@ -53,9 +53,3 @@ import:
 
 demo-logs:
 	@$(MAKE) -f example/logs/makefile demo-logs
-
-demo-logs-mysql-up:
-	@$(MAKE) -f example/logs/makefile mysql-up
-
-demo-logs-mysql-down:
-	@$(MAKE) -f example/logs/makefile mysql-down

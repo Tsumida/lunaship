@@ -45,3 +45,38 @@ func TestPrimaryBrokerEndpoint_SkipsEmptyEntries(t *testing.T) {
 
 	assert.Equal(t, "kafka:9092", endpoint, "broker endpoint resolution should skip blank entries")
 }
+
+// Description:
+// Build producer message metadata with a configured broker list.
+//
+// Expectation:
+// The metadata uses the first broker endpoint for instance-related fields and
+// preserves printable keys.
+func TestBuildProducerMessageMetadata_UsesConfiguredBrokerEndpoint(t *testing.T) {
+	metadata := buildProducerMessageMetadata(
+		" kafka-1.internal:9092 , kafka-2.internal:9092 ",
+		"orders.created",
+		[]byte("order-42"),
+	)
+
+	assert.Equal(t, "orders.created", metadata.topic, "topic should be preserved")
+	assert.Equal(t, "kafka-1.internal:9092", metadata.instanceAddr, "instance address should use the first configured broker endpoint")
+	assert.Equal(t, "kafka-1.internal:9092", metadata.kafkaInstance, "kafka instance label should match the resolved broker endpoint")
+	assert.Equal(t, "order-42", metadata.kafkaKey, "printable message keys should be preserved")
+}
+
+// Description:
+// Inject trace context into sarama producer headers.
+//
+// Expectation:
+// The header carrier should append missing headers when Set is called.
+func TestSaramaProducerHeaderCarrier_AppendsMissingHeader(t *testing.T) {
+	headers := make([]sarama.RecordHeader, 0)
+	carrier := saramaProducerHeaderCarrier{headers: &headers}
+
+	carrier.Set("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+
+	assert.Len(t, headers, 1, "carrier should append a new header when key is missing")
+	assert.Equal(t, "traceparent", string(headers[0].Key), "header key should match")
+	assert.Contains(t, string(headers[0].Value), "00-", "header value should be stored")
+}

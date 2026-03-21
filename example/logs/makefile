@@ -33,25 +33,7 @@ import: upload
 	@ssh $(SSH_FLAGS) -p $(SSH_PORT) $(REMOTE_TARGET) "$(SUDO) k3s ctr images import $(REMOTE_TAR)"
 	@echo "imported image on $(REMOTE_TARGET)"
 
-mysql-up:
-	@docker-compose -f $(LOCAL_COMPOSE) up -d mysql
-	@echo "mysql is starting from $(LOCAL_COMPOSE)"
-
-mysql-down:
-	@docker-compose -f $(LOCAL_COMPOSE) stop mysql
-	@echo "mysql stopped"
-
-redis-up:
-	@docker-compose -f $(LOCAL_COMPOSE) up -d redis
-	@echo "redis is starting from $(LOCAL_COMPOSE)"
-
-redis-down:
-	@docker-compose -f $(LOCAL_COMPOSE) stop redis
-	@echo "redis stopped"
-
 demo-logs:
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) mysql-up
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) redis-up
 ifeq ($(IMPORT),1)
 	@$(MAKE) import
 else
