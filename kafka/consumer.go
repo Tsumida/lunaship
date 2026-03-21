@@ -50,7 +50,7 @@ func (c *KafkaConsumer) Start(
 		cancel()
 		return errors.New("kafka consumer handler is nil")
 	}
-	consumer.bindRuntime(c.ConsumerGroup)
+	consumer.bindRuntime(c.ConsumerGroup, c.Brokers)
 
 	// ensure we have a fresh ready channel before starting the loop
 	consumer.ready = make(chan bool)
@@ -111,6 +111,7 @@ type ConsumerWrapper struct {
 	ready         chan bool
 	handler       ContextMsgHandlerFunc
 	consumerGroup string
+	brokerAddr    string
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -173,8 +174,9 @@ func NewContextConsumerWrapper(name string, f ContextMsgHandlerFunc) *ConsumerWr
 	}
 }
 
-func (consumer *ConsumerWrapper) bindRuntime(consumerGroup string) {
+func (consumer *ConsumerWrapper) bindRuntime(consumerGroup string, brokers string) {
 	consumer.consumerGroup = strings.TrimSpace(consumerGroup)
+	consumer.brokerAddr = primaryBrokerEndpoint(brokers)
 }
 
 func (consumer *ConsumerWrapper) consumeMessage(
@@ -182,7 +184,13 @@ func (consumer *ConsumerWrapper) consumeMessage(
 	session sarama.ConsumerGroupSession,
 	message *sarama.ConsumerMessage,
 ) {
-	ctx, span, metadata := startConsumerInstrumentation(baseCtx, consumer.name, consumer.consumerGroup, message)
+	ctx, span, metadata := startConsumerInstrumentation(
+		baseCtx,
+		consumer.name,
+		consumer.consumerGroup,
+		consumer.brokerAddr,
+		message,
+	)
 	start := metadata.startedAt
 	err := consumer.handleMessage(ctx, session, message)
 	finishConsumerInstrumentation(ctx, span, err, time.Since(start))

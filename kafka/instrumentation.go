@@ -67,9 +67,10 @@ func startConsumerInstrumentation(
 	baseCtx context.Context,
 	consumerName string,
 	consumerGroup string,
+	brokerAddr string,
 	message *sarama.ConsumerMessage,
 ) (context.Context, trace.Span, consumerMessageMetadata) {
-	metadata := buildConsumerMessageMetadata(consumerName, consumerGroup, message)
+	metadata := buildConsumerMessageMetadata(consumerName, consumerGroup, brokerAddr, message)
 	extractedCtx := otel.GetTextMapPropagator().Extract(baseCtx, saramaHeaderCarrier(message.Headers))
 	parentSpanID := parentSpanIDFromContext(extractedCtx)
 
@@ -115,6 +116,7 @@ func finishConsumerInstrumentation(
 func buildConsumerMessageMetadata(
 	consumerName string,
 	consumerGroup string,
+	brokerAddr string,
 	message *sarama.ConsumerMessage,
 ) consumerMessageMetadata {
 	metadata := consumerMessageMetadata{
@@ -123,7 +125,7 @@ func buildConsumerMessageMetadata(
 		offset:        message.Offset,
 		consumerGroup: strings.TrimSpace(consumerGroup),
 		consumerName:  strings.TrimSpace(consumerName),
-		instanceAddr:  "",
+		instanceAddr:  primaryBrokerEndpoint(brokerAddr),
 		instancePort:  0,
 		appName:       consumerAppName(),
 		startedAt:     time.Now(),
@@ -137,6 +139,16 @@ func buildConsumerMessageMetadata(
 	return metadata
 }
 
+func primaryBrokerEndpoint(brokers string) string {
+	for _, broker := range strings.Split(brokers, ",") {
+		broker = strings.TrimSpace(broker)
+		if broker != "" {
+			return broker
+		}
+	}
+	return ""
+}
+
 func consumerContextFields(metadata consumerMessageMetadata) []zap.Field {
 	fields := []zap.Field{
 		zap.String("_topic", metadata.topic),
@@ -148,7 +160,7 @@ func consumerContextFields(metadata consumerMessageMetadata) []zap.Field {
 	if metadata.consumerName != "" {
 		fields = append(fields, zap.String("_consumer", metadata.consumerName))
 	}
-	if metadata.instanceAddr != "" {
+	if metadata.instancePort > 0 {
 		fields = append(fields, zap.Int("_instance_port", metadata.instancePort))
 	}
 	if metadata.kafkaKey != "" {
