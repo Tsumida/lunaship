@@ -2,6 +2,7 @@ package interceptor
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -56,7 +57,7 @@ func NewTraceClientInterceptor() connect.UnaryInterceptorFunc {
 }
 
 func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
-	tracer := otel.Tracer("lunaship/trace")
+	tracer := otel.Tracer(os.Getenv("APP_NAME"))
 	propagator := otel.GetTextMapPropagator()
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(req.Header()))
 	parentSpanID := parentSpanIDFromContext(ctx)
@@ -76,7 +77,7 @@ func startServerSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, c
 }
 
 func startClientSpan(ctx context.Context, req connect.AnyRequest) (trace.Span, context.Context) {
-	tracer := otel.Tracer("lunaship/trace")
+	tracer := otel.Tracer(os.Getenv("APP_NAME"))
 	spanName := req.Spec().Procedure
 	parentSpanID := parentSpanIDFromContext(ctx)
 

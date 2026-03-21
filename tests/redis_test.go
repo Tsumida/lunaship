@@ -48,7 +48,7 @@ func initEnv() {
 	os.Setenv("MYSQL_DATABASE", "test")
 	os.Setenv("REDIS_ADDR", "127.0.0.1:6379")
 	os.Setenv("REDIS_PWD", "")
-	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4317")
+	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
 	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://127.0.0.1:4318/v1/traces")
 	os.Setenv("JAEGER_AGENT_HOST", "127.0.0.1")
 	os.Setenv("JAEGER_AGENT_PORT", "6831")

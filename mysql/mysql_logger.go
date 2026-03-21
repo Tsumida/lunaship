@@ -1,4 +1,4 @@
-package infra
+package mysql
 
 import (
 	"context"
@@ -112,10 +112,10 @@ func (l *mysqlGormLogger) emitTraceSpan(
 	hasErr bool,
 	err error,
 ) {
-	tracer := otel.Tracer("lunaship/mysql")
+	tracer := otel.Tracer("MySQL")
 	_, span := tracer.Start(
 		ctx,
-		"mysql.query",
+		"mysql",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithTimestamp(begin),
 		oteltrace.WithAttributes(

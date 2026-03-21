@@ -2,10 +2,17 @@ package redis
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	redis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/tsumida/lunaship/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestParseRedisAddr(t *testing.T) {
@@ -49,5 +56,64 @@ func TestLuaSHAFromCommand(t *testing.T) {
 		// Expectation: helper should return empty string.
 		cmd := redis.NewCmd(context.Background(), "GET", "k1")
 		assert.Equal(t, "", luaSHAFromCommand(cmd), "non evalsha command should not expose sha")
+	})
+}
+
+func TestRedisTraceLogHook_IgnoresRedisNilReply(t *testing.T) {
+	t.Run("flow: redis.Nil is treated as normal nil reply (cache miss) for span status", func(t *testing.T) {
+		// Description: redis GET returns redis.Nil to represent a nil reply (missing key).
+		// Expectation: hook should not mark the span as error, but should still return redis.Nil to caller.
+		log.InitLog(
+			filepath.Join(t.TempDir(), "info.log"),
+			filepath.Join(t.TempDir(), "warn.log"),
+			zapcore.InfoLevel,
+		)
+
+		recorder := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+		t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+		otel.SetTracerProvider(tp)
+
+		h := newRedisTraceLogHook([]string{"127.0.0.1:6379"})
+		process := h.ProcessHook(func(ctx context.Context, cmd redis.Cmder) error {
+			return redis.Nil
+		})
+
+		cmd := redis.NewCmd(context.Background(), "GET", "missing-key")
+		err := process(context.Background(), cmd)
+		assert.ErrorIs(t, err, redis.Nil, "hook should not swallow redis.Nil")
+
+		spans := recorder.Ended()
+		assert.Len(t, spans, 1, "one span should be ended per command")
+		assert.Equal(t, "redis.get", spans[0].Name(), "span name should follow command name")
+		assert.NotEqual(t, codes.Error, spans[0].Status().Code, "span status should not be error on nil reply")
+	})
+
+	t.Run("flow: non-nil error is still treated as error for span status", func(t *testing.T) {
+		// Description: redis command returns a real error (not redis.Nil).
+		// Expectation: hook should mark the span status as error.
+		log.InitLog(
+			filepath.Join(t.TempDir(), "info.log"),
+			filepath.Join(t.TempDir(), "warn.log"),
+			zapcore.InfoLevel,
+		)
+
+		recorder := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+		t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+		otel.SetTracerProvider(tp)
+
+		h := newRedisTraceLogHook([]string{"127.0.0.1:6379"})
+		process := h.ProcessHook(func(ctx context.Context, cmd redis.Cmder) error {
+			return assert.AnError
+		})
+
+		cmd := redis.NewCmd(context.Background(), "GET", "any-key")
+		err := process(context.Background(), cmd)
+		assert.ErrorIs(t, err, assert.AnError, "hook should return original error")
+
+		spans := recorder.Ended()
+		assert.Len(t, spans, 1, "one span should be ended per command")
+		assert.Equal(t, codes.Error, spans[0].Status().Code, "span status should be error on real error")
 	})
 }

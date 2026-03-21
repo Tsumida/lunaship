@@ -1,4 +1,4 @@
-package infra
+package mysql
 
 import (
 	"context"
@@ -195,7 +195,7 @@ func TestMySQLGormLoggerTraceSpan(t *testing.T) {
 		parent.End()
 
 		spans := recorder.Ended()
-		mysqlSpan := findSpanByName(spans, "mysql.query")
+		mysqlSpan := findSpanByName(spans, "mysql")
 		if assert.NotNil(t, mysqlSpan, "mysql span should be emitted") {
 			attrs := attrsToMap(mysqlSpan.Attributes())
 			assert.Equal(t, "mysql", attrs["target_type"], "target type should be mysql")
@@ -229,7 +229,7 @@ func TestMySQLGormLoggerTraceSpan(t *testing.T) {
 		parent.End()
 
 		spans := recorder.Ended()
-		mysqlSpan := findSpanByName(spans, "mysql.query")
+		mysqlSpan := findSpanByName(spans, "mysql")
 		if assert.NotNil(t, mysqlSpan, "mysql span should be emitted") {
 			attrs := attrsToMap(mysqlSpan.Attributes())
 			assert.Equal(t, true, attrs["error.flag"], "error flag should be true for failed query")

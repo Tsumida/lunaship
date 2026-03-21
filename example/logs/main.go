@@ -10,6 +10,7 @@ import (
 	"github.com/tsumida/lunaship/example/logs/gen/logsv1connect"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
+	"github.com/tsumida/lunaship/mysql"
 	"github.com/tsumida/lunaship/redis"
 	"github.com/tsumida/lunaship/service"
 	"github.com/tsumida/lunaship/utils"
@@ -24,7 +25,7 @@ func main() {
 		_ = os.Setenv("ERR_FILE", "./tmp/err.log")
 	}
 	bindAddr := utils.StrOrDefault(os.Getenv("BIND_ADDR"), ":8080")
-	mysqlConf := infra.LoadMySQLConfFromEnv(false)
+	mysqlConf := mysql.LoadMySQLConfFromEnv(false)
 	redisConf := redis.LoadRedisConfigFromEnv()
 
 	path, handler := logsv1connect.NewDummyServiceHandler(
@@ -49,10 +50,10 @@ func main() {
 			return nil
 		},
 		func() error {
-			if err := infra.InitMySQL(
+			if err := mysql.InitMySQL(
 				mysqlConf,
 				gorm.Config{
-					Logger: infra.NewMySQLGormLogger(mysqlConf),
+					Logger: mysql.NewMySQLGormLogger(mysqlConf),
 				},
 				func(db *gorm.DB) error {
 					if db == nil {

@@ -12,9 +12,9 @@ import (
 	redis "github.com/redis/go-redis/v9"
 	logsv1 "github.com/tsumida/lunaship/example/logs/gen"
 	"github.com/tsumida/lunaship/example/logs/gen/logsv1connect"
-	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
 	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/mysql"
 	lunaredis "github.com/tsumida/lunaship/redis"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -108,7 +108,7 @@ func (s *DummyService) GetSpot(
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 
-	db := infra.GlobalMySQL()
+	db := mysql.GlobalMySQL()
 	if db == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("mysql is not initialized"))
 	}
