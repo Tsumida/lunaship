@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tsumida/lunaship/infra"
@@ -71,6 +72,12 @@ func (s *Service) RunAfterInit(
 
 	mux := http.NewServeMux()
 	mux.Handle(s.Path, s.Handler)
+
+	pprofManager := infra.InitPprofServer(
+		utils.StrOrDefault(strings.TrimSpace(os.Getenv("PPROF_LISTEN_ADDR")), infra.DEFAULT_PPROF_ADDR),
+		"",
+	)
+	pprofManager.RegisterHandlers(mux)
 	log.GlobalLog().Info(
 		"server up", zap.String("listen", s.BindingAddress),
 	)
@@ -101,5 +108,8 @@ func (s *Service) RunAfterInit(
 
 	if err := server.Shutdown(sctx); err != nil {
 		log.GlobalLog().Error("failed to shutdown", zap.Error(err))
+	}
+	if _, err := pprofManager.Stop(); err != nil {
+		log.GlobalLog().Error("failed to stop pprof", zap.Error(err))
 	}
 }
