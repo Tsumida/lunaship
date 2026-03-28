@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.ci.yml}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.cicd.yml}"
 PROJECT_NAME="ci-itest"
 WAIT_TIMEOUT=30
 SERVICE_NAME="redis"

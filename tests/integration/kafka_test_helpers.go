@@ -88,6 +88,24 @@ func envOrDefault(key, fallback string) string {
 	return value
 }
 
+func integrationKafkaBrokerAddr() string {
+	return envOrDefault("KAFKA_ADDR", "127.0.0.1:9092")
+}
+
+func configureIntegrationTraceExporter(t *testing.T) *otlpTraceCollector {
+	t.Helper()
+
+	traceExporterEndpoint := strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	if traceExporterEndpoint != "" {
+		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", traceExporterEndpoint)
+		return nil
+	}
+
+	collector := newOTLPTraceCollector(t)
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.Endpoint())
+	return collector
+}
+
 func kafkaTracerName() string {
 	name := strings.TrimSpace(os.Getenv("APP_NAME"))
 	if name == "" {

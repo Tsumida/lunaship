@@ -26,12 +26,13 @@ func TestKafkaProducer_ProducesHelloWorldMessages(t *testing.T) {
 	t.Setenv("SERVICE_ID", "kafka-producer-integration")
 	t.Setenv("TRACE_ENABLED", "true")
 	t.Setenv("TRACE_ERROR_LOG_DISABLED", "true")
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4318")
 	t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+
+	configureIntegrationTraceExporter(t)
 
 	_ = initializeObservability(t, "producer")
 
-	brokerAddr := envOrDefault("KAFKA_ADDR", "kafka:9092")
+	brokerAddr := integrationKafkaBrokerAddr()
 	topic := "test-lunaship"
 	payload := "hello, world"
 

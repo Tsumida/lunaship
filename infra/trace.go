@@ -23,15 +23,15 @@ import (
 )
 
 type TraceConfig struct {
-	Enabled                bool
-	ServiceName            string
-	OTLPEndpoint           string
-	OTLPProtocol           string
-	OTLPTracesEndpoint     bool
+	Enabled                 bool
+	ServiceName             string
+	OTLPEndpoint            string
+	OTLPProtocol            string
+	OTLPTracesEndpoint      bool
 	LegacyCollectorEndpoint bool
-	SamplerType            string
-	SamplerRate            float64
-	ErrorLogDisabled       bool
+	SamplerType             string
+	SamplerRate             float64
+	ErrorLogDisabled        bool
 }
 
 var traceCloser = func() error { return nil }
@@ -104,15 +104,15 @@ func LoadTraceConfigFromEnv() (TraceConfig, error) {
 	}
 
 	conf := TraceConfig{
-		Enabled:                enabled,
-		ServiceName:            serviceName,
-		OTLPEndpoint:           otlpEndpoint,
-		OTLPProtocol:           otlpProtocol,
-		OTLPTracesEndpoint:     otlpTracesEndpoint,
+		Enabled:                 enabled,
+		ServiceName:             serviceName,
+		OTLPEndpoint:            otlpEndpoint,
+		OTLPProtocol:            otlpProtocol,
+		OTLPTracesEndpoint:      otlpTracesEndpoint,
 		LegacyCollectorEndpoint: legacyCollectorEndpoint,
-		SamplerType:            samplerType,
-		SamplerRate:            rate,
-		ErrorLogDisabled:       errorLogDisabled,
+		SamplerType:             samplerType,
+		SamplerRate:             rate,
+		ErrorLogDisabled:        errorLogDisabled,
 	}
 
 	return conf, parseErr

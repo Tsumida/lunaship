@@ -28,17 +28,11 @@ func TestKafkaConsumer_ConsumesAllMessagesFromTopic(t *testing.T) {
 	t.Setenv("TRACE_ERROR_LOG_DISABLED", "true")
 	t.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
 
-	traceExporterEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	var traceCollector *otlpTraceCollector
-	if traceExporterEndpoint == "" {
-		traceCollector = newOTLPTraceCollector(t)
-		traceExporterEndpoint = "http://127.0.0.1:4318"
-	}
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", traceExporterEndpoint)
+	traceCollector := configureIntegrationTraceExporter(t)
 
 	observability := initializeObservability(t, "consumer")
 
-	brokerAddr := envOrDefault("KAFKA_ADDR", "kafka:9092")
+	brokerAddr := integrationKafkaBrokerAddr()
 	topic := "test-lunaship"
 	payload := "hello, world"
 	producedCount := 3
