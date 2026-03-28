@@ -26,7 +26,7 @@ jobs:
 
       - name: Run integration test
         env:
-          COMPOSE_FILE: docker-compose.ci.yml
+          COMPOSE_FILE: docker-compose.cicd.yml
           CI: "true"
         run: |
           chmod +x scripts/it.sh

@@ -31,11 +31,15 @@ spec:
               containerPort: 8080
             - name: metrics
               containerPort: 9090
+            - name: pprof
+              containerPort: 6060
           env:
             - name: BIND_ADDR
               value: ":8080"
             - name: PROMETHEUS_LISTEN_ADDR
               value: ":9090"
+            - name: PPROF_LISTEN_ADDR
+              value: ":6060"
             - name: TRACE_ENABLED
               value: "true"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -49,6 +53,8 @@ spec:
             - name: JAEGER_SAMPLER_RATE
               value: "1"
             - name: SERVICE_ID
+              value: "logs-demo-a"
+            - name: APP_NAME
               value: "logs-demo-a"
             - name: LOG_FILE
               value: "/tmp/log.log"
@@ -96,6 +102,9 @@ spec:
     - name: metrics
       port: 9090
       targetPort: 9090
+    - name: pprof
+      port: 6060
+      targetPort: 6060
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -130,11 +139,15 @@ spec:
               containerPort: 8080
             - name: metrics
               containerPort: 9090
+            - name: pprof
+              containerPort: 6060
           env:
             - name: BIND_ADDR
               value: ":8080"
             - name: PROMETHEUS_LISTEN_ADDR
               value: ":9090"
+            - name: PPROF_LISTEN_ADDR
+              value: ":6060"
             - name: TRACE_ENABLED
               value: "true"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -148,6 +161,8 @@ spec:
             - name: JAEGER_SAMPLER_RATE
               value: "1"
             - name: SERVICE_ID
+              value: "logs-demo-b"
+            - name: APP_NAME
               value: "logs-demo-b"
             - name: LOG_FILE
               value: "/tmp/log.log"
@@ -195,3 +210,6 @@ spec:
     - name: metrics
       port: 9090
       targetPort: 9090
+    - name: pprof
+      port: 6060
+      targetPort: 6060

@@ -2,7 +2,7 @@ PROJECT_NAME := tex
 PROJECT_ROOT := $(shell pwd)
 REPO_PREFIX := ""
 
-DOCKER_COMPOSE_FILE := $(PROJECT_ROOT)/docker-compose.ci.yml
+DOCKER_COMPOSE_FILE := $(PROJECT_ROOT)/docker-compose.cicd.yml
 
 # ==============================================================================
 # 💾 本地开发

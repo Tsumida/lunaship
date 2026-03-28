@@ -1,4 +1,4 @@
-package infra
+package trace
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/tsumida/lunaship/utils"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -40,6 +41,18 @@ var traceReporterErrorCounter = prometheus.NewCounter(prometheus.CounterOpts{
 	Name: "lunaship_trace_reporter_errors_total",
 	Help: "Total number of trace reporter errors",
 })
+
+func StartAsyncSpan(ctx context.Context, name string) (context.Context, func(error)) {
+	asyncCtx := context.WithoutCancel(ctx)
+	asyncCtx, span := otel.Tracer("lunaship").Start(asyncCtx, name)
+	return asyncCtx, func(err error) {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}
+}
 
 func init() {
 	prometheus.MustRegister(traceReporterErrorCounter)
@@ -212,6 +225,7 @@ func CloseTracing() error {
 	return traceCloser()
 }
 
+// ---- Internal
 type traceErrorHandler struct{}
 
 func (h *traceErrorHandler) Handle(err error) {
