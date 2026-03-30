@@ -14,6 +14,8 @@ So we want a module `config/` to init load the `config/app.toml` and provide API
 
 # Out of scope
 
+- `app.toml` stores static config that will not change at runtime(If there are any changes, just restart).
+- There are information need to be injected by env vars at startup, which is listed at section `Environment variables`.
 - Dynamic listening and reloading. 
 
 # Design 
@@ -26,10 +28,8 @@ The `config/app.toml` is loaded and fixed at startup. We don't support dynamic r
 
 If the config is invalid, such as lack of `APP_NAME`, the application will print the error log and then panic. 
 
+Auto-intialization for Redis, MySQL and Kafka clients while startup. For example, we init multiple client for multiple MySQL endpoints. And we can access sepcific client by name, e.g. `GetMySQLClient("dev-mysql")`.
 
-## Environment variables
-
-We still need env vars for runtime overrides, such as `ENV`, `COMMIT_HASH`. 
 
 ## Config struct
 
@@ -50,6 +50,12 @@ app_name = "logs-demo"
 # Optional. The commit hash of the application. Default: "error"
 level = "info" # debug, info, warn, error. Default is "info".
 
+[app.trace]
+enabled = true # optional, default is false. Enable OpenTelemetry tracing.
+otel_exporter_otlp_endpoint = "otel.tinyinfra.dev:4317" 
+otel_exporter_otlp_protocol = "http" # optional, with http supported only. 
+otel_resource_otlp_trace_endpoint = "http://192.168.0.120:4318"
+
 [redis] # global config for all Redis instances
 
 [redis.dev-redis] # An endpoint named "dev-redis"
@@ -62,11 +68,11 @@ max_idle_conns = 100
 max_idle_time = "30s"
 
 [mysql.dev-mysql] # An endpoint named "dev-mysql"
-addr = "mysql.tinyinfra.dev"
+host = "mysql.tinyinfra.dev"
 port = 3306
 username = "root"
 password = "password"
-database = "test" # optional. 
+database = "test" # required.  
 
 # optional, default is false. Ping the MySQL server at startup to validate the connection. 
 # Panic if ping failed. 
@@ -81,7 +87,6 @@ acks = "all" # default is "all". Other options: "0", "1".
 [kafka.consumer.dev] # An consumer endpoint named "consumer.dev"
 brokers = ["kafka.tinyinfra.dev:9092"]
 topic = "test-topic"
-acks = "all" # default is "all". Other options: "0", "1".
 
 # custom config for a module named "custom-kv". There may be multiple custom config sections. 
 [custom-kv] 
@@ -110,6 +115,33 @@ func FromAppToml(body []byte) (*ModuleKeyValue, error) {
     return &config, nil
 }
 ```
+# Environment variables
+
+There are part of environment variables that are still needed for runtime overrides:
+```sh
+ENV ENV=""
+ENV ERR_FILE=""
+ENV LOG_FILE=""
+ENV COMMIT_HASH=""
+```
+
+There should be injected by CICD pipeline. 
+
+And some var should keep unchanged: 
+
+```sh
+JWT_MAILBOX_KEY
+```
+
+# Migration
+
+## MySQL
+- Add `GetMySQLClient(name string) (*sql.DB, error)` to get the MySQL client by name.
+- `GlobalMySQL` is the same as `GetMySQLClient("default")` for backward compatibility. We can deprecate `GlobalMySQL` in the future.
+
+## Redis
+- Add `GetRedisClient(name string) (*RedisClient, error)` to get the Redis client by name.
+- `GlobalRedis` is the same as `GetRedisClient("default")`.
 
 # Deployment
 
