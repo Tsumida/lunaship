@@ -14,6 +14,7 @@ import (
 	"github.com/tsumida/lunaship/config"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/module"
 	"github.com/tsumida/lunaship/mysql"
 	lunaredis "github.com/tsumida/lunaship/redis"
 	"github.com/tsumida/lunaship/utils"
@@ -57,62 +58,176 @@ type Service struct {
 	BindingAddress string
 }
 
-func (s *Service) Run(ctx context.Context) {
-	cfgPath := utils.StrOrDefault(
+const (
+	bootstrapModuleConfig          = "config"
+	bootstrapModuleRuntimeMetadata = "runtime-metadata"
+	bootstrapModuleLog             = "log"
+	bootstrapModuleTracing         = "tracing"
+	bootstrapModuleRedis           = "redis"
+	bootstrapModuleMySQL           = "mysql"
+	bootstrapModuleKafka           = "kafka"
+	bootstrapModulePprof           = "pprof"
+)
+
+type bootstrapState struct {
+	cfgPath        string
+	cfg            *config.AppConfig
+	registerRoutes func(mux *http.ServeMux)
+	stopPprof      func()
+	logReady       bool
+	tracingReady   bool
+}
+
+func (s *Service) Run(ctx context.Context, extraModuleInit ...module.Module) {
+	state := &bootstrapState{cfgPath: resolveAppConfigPath()}
+
+	defer func() {
+		if !state.tracingReady {
+			return
+		}
+		_ = infra.CloseTracing()
+	}()
+	defer func() {
+		if !state.logReady {
+			return
+		}
+
+		logger := log.GlobalLog()
+		if logger == nil {
+			return
+		}
+
+		logger.Info("server done")
+		_ = logger.Sync()
+	}()
+
+	modules := append(buildDefaultInitModules(state), extraModuleInit...)
+	if err := module.Execute(ctx, modules...); err != nil {
+		panic(err)
+	}
+
+	s.serve(ctx, defaultShutdownTimeout, state.registerRoutes, state.stopPprof)
+}
+
+func resolveAppConfigPath() string {
+	return utils.StrOrDefault(
 		strings.TrimSpace(os.Getenv("APP_CONFIG_PATH")),
 		defaultAppConfigPath,
 	)
-	cfg, err := config.Load(cfgPath)
+}
+
+func buildDefaultInitModules(state *bootstrapState) []module.Module {
+	return []module.Module{
+		module.NewModuleWrapper(
+			bootstrapModuleConfig,
+			"Load app config",
+			func(ctx context.Context) error {
+				cfg, err := loadAppConfig(state.cfgPath)
+				if err != nil {
+					return err
+				}
+				state.cfg = cfg
+				return nil
+			},
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleRuntimeMetadata,
+			"Apply runtime metadata",
+			func(ctx context.Context) error {
+				applyRuntimeMetadata(state.cfg)
+				return nil
+			},
+			bootstrapModuleConfig,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleLog,
+			"Init logging",
+			func(ctx context.Context) error {
+				_ = log.InitLog(
+					utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
+					utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
+					logLevelFromConfig(state.cfg.App.Log.Level),
+				)
+				state.logReady = true
+				return nil
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleRuntimeMetadata,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleTracing,
+			"Init tracing",
+			func(ctx context.Context) error {
+				if _, err := infra.InitTracing(traceConfigFromAppConfig(state.cfg)); err != nil {
+					log.GlobalLog().Error("failed to init tracing", zap.Error(err))
+					return nil
+				}
+
+				state.tracingReady = true
+				return nil
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleRedis,
+			"Init redis",
+			func(ctx context.Context) error {
+				return initRedis(ctx, state.cfg)
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleMySQL,
+			"Init mysql",
+			func(ctx context.Context) error {
+				return initMySQL(state.cfg)
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleKafka,
+			"Init kafka",
+			func(ctx context.Context) error {
+				return initKafka(state.cfg)
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+		module.NewModuleWrapper(
+			bootstrapModulePprof,
+			"Init pprof",
+			func(ctx context.Context) error {
+				if state.cfg == nil || !state.cfg.App.Pprof.Enabled {
+					return nil
+				}
+
+				state.registerRoutes, state.stopPprof = initPprof(state.cfg)
+				return nil
+			},
+			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+	}
+}
+
+func loadAppConfig(path string) (*config.AppConfig, error) {
+	cfg, err := config.Load(path)
 	if err != nil {
 		logger := log.InitLog(
 			utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
 			utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
 			zapcore.InfoLevel,
 		)
-		logger.Error("failed to load app config", zap.String("path", cfgPath), zap.Error(err))
+		logger.Error("failed to load app config", zap.String("path", path), zap.Error(err))
 		_ = logger.Sync()
-		panic(err)
+		return nil, err
 	}
+
 	config.SetGlobal(cfg)
-
-	applyRuntimeMetadata(cfg)
-
-	_ = log.InitLog(
-		utils.StrOrDefault(os.Getenv("LOG_FILE"), "./tmp/log.log"),
-		utils.StrOrDefault(os.Getenv("ERR_FILE"), "./tmp/err.log"),
-		logLevelFromConfig(cfg.App.Log.Level),
-	)
-	defer func() {
-		_ = infra.CloseTracing()
-	}()
-	defer func() {
-		_ = log.GlobalLog().Sync()
-		log.GlobalLog().Info("server done")
-	}()
-
-	if _, err := infra.InitTracing(traceConfigFromAppConfig(cfg)); err != nil {
-		log.GlobalLog().Error("failed to init tracing", zap.Error(err))
-	}
-
-	if err := initRedis(ctx, cfg); err != nil {
-		panic(err)
-	}
-	if err := initMySQL(cfg); err != nil {
-		panic(err)
-	}
-	if err := initKafka(cfg); err != nil {
-		panic(err)
-	}
-
-	var (
-		registerRoutes func(mux *http.ServeMux)
-		stopPprof      func()
-	)
-	if cfg.App.Pprof.Enabled {
-		registerRoutes, stopPprof = initPprofFromConfig(cfg)
-	}
-
-	s.serve(ctx, defaultShutdownTimeout, registerRoutes, stopPprof)
+	return cfg, nil
 }
 
 func (s *Service) serve(
@@ -216,7 +331,7 @@ func traceConfigFromAppConfig(cfg *config.AppConfig) infra.TraceConfig {
 	}
 }
 
-func initPprofFromConfig(cfg *config.AppConfig) (func(mux *http.ServeMux), func()) {
+func initPprof(cfg *config.AppConfig) (func(mux *http.ServeMux), func()) {
 	addr := utils.StrOrDefault(
 		strings.TrimSpace(os.Getenv("PPROF_LISTEN_ADDR")),
 		infra.DEFAULT_PPROF_ADDR,
