@@ -1,0 +1,64 @@
+[app]
+
+# Required. The unique name of the application.
+app_name = "logs-demo"
+
+[app.log]
+# Optional. Default is "info". debug, info, warn, error
+level = "info" 
+
+[app.trace]
+enabled = true # optional, default is false. Enable OpenTelemetry tracing.
+otel_exporter_otlp_endpoint = "otel.tinyinfra.dev:4317" 
+otel_exporter_otlp_protocol = "http" # optional, with http supported only. 
+otel_resource_otlp_trace_endpoint = "http://192.168.0.120:4318"
+
+[app.pprof]
+# Optional. Enable pprof endpoint for profiling. Allow "server" and "dynamic". 
+# "server" means start a separate pprof server that keeps running. 
+# "dynamic" means start a pprof server on demand when receiving a signal (e.g. /pprof/start, /pprof/stop). The pprof server will stop after a certain duration (e.g. 5 minutes) to avoid potential security risk.
+mode = "dynamic" 
+enabled = true # optional, default is true. Enable pprof endpoint.
+
+
+# ======================================================= global config for all Redis instances
+[redis] 
+[redis.dev-redis] # An endpoint named "dev-redis"
+addr = "redis.tinyinfra.dev"
+port = 6379
+
+# ======================================================= global config for all MySQL instances
+[mysql] 
+max_open_conns = 300
+max_idle_conns = 100
+max_idle_time = "30s"
+
+[mysql.dev-mysql] # An endpoint named "dev-mysql"
+host = "mysql.tinyinfra.dev"
+port = 3306
+username = "root"
+password = "password" # demo only. In production, source it from a k8s Secret and render it into the file at deploy time.
+database = "test" # required.  
+
+# optional, default is false. Ping the MySQL server at startup to validate the connection. 
+# Panic if ping failed. 
+ping_enabled = true
+
+# ======================================================= global config for all Kafka instances
+[kafka] 
+[kafka.producer.dev] # An producer endpoint named "producer.dev"
+brokers = ["kafka.tinyinfra.dev:9092"]
+topic = "test-topic"
+acks = "all" # default is "all". Other options: "0", "1".
+
+[kafka.consumer.dev] # An consumer endpoint named "consumer.dev"
+brokers = ["kafka.tinyinfra.dev:9092"]
+topic = "test-topic"
+consumer_group = "demo-consumer-group" # required for consumer group based consumption.
+
+# ======================================================= custom
+# custom config for a module named "custom-kv". There may be multiple custom config sections. 
+[custom-kv] 
+key1 = "value1"
+key2 = "value2"
+blocked_list = ["user1", "user2"] # optional, default is empty list.

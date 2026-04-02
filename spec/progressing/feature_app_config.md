@@ -30,6 +30,17 @@ If the config is invalid, such as lack of `APP_NAME`, the application will print
 
 Auto-initialization for Redis, MySQL and Kafka clients at startup. For example, we can init multiple clients for multiple MySQL endpoints, and access a specific client by name, e.g. `GetMySQLClient("dev-mysql")`.
 
+We offer a new init function `svc.Run()` to replace the current `svc.RunAfterInit()`:
+
+```go
+
+// Run() loads the `app.toml` from env `APP_CONFIG_PATH`, or `config/app.toml` as default. 
+// Run() only init modules that present and enabled in the `app.toml`. For example, if there is no `mysql` section, the MySQL client will not be initialized and `GetMySQLClient()` will return an error.
+func (s *Service) Run(ctx context.Context) {
+  
+}
+```
+
 
 ## Config struct
 

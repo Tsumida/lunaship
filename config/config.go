@@ -1,11 +1,11 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 
 	toml "github.com/pelletier/go-toml/v2"
 	"github.com/tsumida/lunaship/configparse"
@@ -15,12 +15,32 @@ import (
 )
 
 type AppConfig struct {
-	App   AppSection          `toml:"app"`
-	Redis lunaredis.AppConfig `toml:"redis"`
-	MySQL mysql.MySQLConfig   `toml:"mysql"`
-	Kafka kafka.KafkaConfig   `toml:"kafka"`
+	App    AppSection          `toml:"app"`
+	Redis  lunaredis.AppConfig `toml:"redis"`
+	MySQL  mysql.MySQLConfig   `toml:"mysql"`
+	Kafka  kafka.KafkaConfig   `toml:"kafka"`
+	Custom map[string]any      `toml:",remain"`
 
 	raw map[string]any
+}
+
+var (
+	globalAppConfig   *AppConfig
+	globalAppConfigMu sync.RWMutex
+)
+
+func SetGlobal(cfg *AppConfig) {
+	globalAppConfigMu.Lock()
+	defer globalAppConfigMu.Unlock()
+
+	globalAppConfig = cfg
+}
+
+func Global() *AppConfig {
+	globalAppConfigMu.RLock()
+	defer globalAppConfigMu.RUnlock()
+
+	return globalAppConfig
 }
 
 func Load(path string) (*AppConfig, error) {
@@ -57,21 +77,19 @@ func LoadFromBytes(body []byte) (*AppConfig, error) {
 	}
 
 	problems := &configparse.Problems{}
+	metadata, err := configparse.Decode(raw, cfg)
+	if err != nil {
+		configparse.AddDecodeError(problems, "", err)
+	}
+	configparse.AddUnused(problems, metadata, nil)
 
-	appTable, ok := configparse.RequireTable(raw, "app", "app", problems)
-	if ok {
-		cfg.App = decodeAppSection(appTable, problems)
-	}
+	cfg.App.Normalize()
+	cfg.Kafka.Normalize()
 
-	if redisTable, ok := configparse.OptionalTable(raw, "redis", "redis", problems); ok {
-		cfg.Redis = lunaredis.DecodeAppConfig(redisTable, problems)
-	}
-	if mysqlTable, ok := configparse.OptionalTable(raw, "mysql", "mysql", problems); ok {
-		cfg.MySQL = mysql.DecodeMySQLConfig(mysqlTable, problems)
-	}
-	if kafkaTable, ok := configparse.OptionalTable(raw, "kafka", "kafka", problems); ok {
-		cfg.Kafka = kafka.DecodeKafkaConfig(kafkaTable, problems)
-	}
+	cfg.App.Validate(problems)
+	cfg.Redis.Validate(problems)
+	cfg.MySQL.Validate(problems)
+	cfg.Kafka.Validate(problems)
 
 	if problems.HasErrors() {
 		return nil, &LoadError{
@@ -91,17 +109,17 @@ func (c *AppConfig) GetCustomConfig(section string, out any) error {
 		return err
 	}
 
-	value, err := lookupSection(c.raw, section)
+	value, err := configparse.LookupPath(c.Custom, section)
 	if err != nil {
-		return err
+		return fmt.Errorf("custom config section %q not found: %w", section, err)
 	}
 
-	body, err := toml.Marshal(value)
+	metadata, err := configparse.Decode(value, out)
 	if err != nil {
-		return fmt.Errorf("marshal custom config %q: %w", section, err)
-	}
-	if err := toml.NewDecoder(bytes.NewReader(body)).Decode(out); err != nil {
 		return fmt.Errorf("decode custom config %q: %w", section, err)
+	}
+	if metadata != nil && len(metadata.Unused) > 0 {
+		return fmt.Errorf("decode custom config %q: unknown fields: %s", section, strings.Join(metadata.Unused, ", "))
 	}
 	return nil
 }
@@ -116,34 +134,4 @@ func requireDecodeTarget(out any) error {
 		return fmt.Errorf("decode target must be a non-nil pointer")
 	}
 	return nil
-}
-
-func lookupSection(raw map[string]any, section string) (any, error) {
-	normalized := strings.TrimSpace(section)
-	normalized = strings.TrimPrefix(normalized, ".")
-	if normalized == "" {
-		return nil, fmt.Errorf("custom config section must not be empty")
-	}
-
-	parts := strings.Split(normalized, ".")
-	current := any(raw)
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return nil, fmt.Errorf("invalid custom config section %q", section)
-		}
-
-		table, ok := current.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("custom config section %q is not a table path", section)
-		}
-
-		next, ok := table[part]
-		if !ok {
-			return nil, fmt.Errorf("custom config section %q not found", section)
-		}
-		current = next
-	}
-
-	return current, nil
 }

@@ -143,3 +143,37 @@ app_name = "logs-demo"
 		assert.Contains(t, err.Error(), `custom config section ".custom-kv" not found`, "error should identify the missing section")
 	})
 }
+
+func TestGlobal(t *testing.T) {
+	t.Run("flow: set and get global app config", func(t *testing.T) {
+		// Description: bootstrap publishes a loaded AppConfig for later reuse.
+		// Expectation: Global should return the same pointer until explicitly cleared or replaced.
+		previous := Global()
+		t.Cleanup(func() {
+			SetGlobal(previous)
+		})
+
+		cfg := &AppConfig{
+			App: AppSection{
+				AppName: "logs-demo",
+			},
+		}
+
+		SetGlobal(cfg)
+
+		assert.Same(t, cfg, Global(), "global config should return the pointer published by bootstrap")
+	})
+
+	t.Run("flow: global app config can be cleared", func(t *testing.T) {
+		// Description: tests or alternate bootstrap flows need to reset the shared config state.
+		// Expectation: SetGlobal(nil) should clear the shared pointer safely.
+		previous := Global()
+		t.Cleanup(func() {
+			SetGlobal(previous)
+		})
+
+		SetGlobal(nil)
+
+		assert.Nil(t, Global(), "cleared global config should return nil")
+	})
+}

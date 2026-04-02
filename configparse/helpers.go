@@ -1,8 +1,11 @@
 package configparse
 
 import (
-	"strconv"
+	"fmt"
 	"strings"
+	"time"
+
+	"github.com/go-viper/mapstructure/v2"
 )
 
 type FieldError struct {
@@ -37,128 +40,47 @@ func (p *Problems) Errors() []FieldError {
 	return out
 }
 
-func RequireTable(raw map[string]any, key string, path string, problems *Problems) (map[string]any, bool) {
-	value, exists := raw[key]
-	if !exists {
-		problems.Add(path, "is required")
-		return nil, false
+func Decode(input any, out any) (*mapstructure.Metadata, error) {
+	metadata := &mapstructure.Metadata{}
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:   out,
+		Metadata: metadata,
+		TagName:  "toml",
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.TextUnmarshallerHookFunc(),
+		),
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	table, ok := AsTable(value)
-	if !ok {
-		problems.Add(path, "must be a table")
-		return nil, false
+	if err := decoder.Decode(input); err != nil {
+		return nil, err
 	}
-	return table, true
+	return metadata, nil
 }
 
-func OptionalTable(raw map[string]any, key string, path string, problems *Problems) (map[string]any, bool) {
-	value, ok := raw[key]
-	if !ok {
-		return nil, false
+func AddDecodeError(problems *Problems, path string, err error) {
+	if err == nil {
+		return
 	}
-
-	table, ok := AsTable(value)
-	if !ok {
-		problems.Add(path, "must be a table")
-		return nil, false
+	if path == "" {
+		problems.Add("", err.Error())
+		return
 	}
-	return table, true
+	problems.Add(path, err.Error())
 }
 
-func AsTable(value any) (map[string]any, bool) {
-	table, ok := value.(map[string]any)
-	return table, ok
-}
-
-func OptionalString(raw map[string]any, key string, path string, problems *Problems) (string, bool) {
-	value, ok := raw[key]
-	if !ok {
-		return "", false
+func AddUnused(problems *Problems, metadata *mapstructure.Metadata, ignorePaths map[string]struct{}) {
+	if metadata == nil {
+		return
 	}
-
-	str, ok := value.(string)
-	if !ok {
-		problems.Add(path, "must be a string")
-		return "", false
-	}
-	return str, true
-}
-
-func OptionalBool(raw map[string]any, key string, path string, problems *Problems) (bool, bool) {
-	value, ok := raw[key]
-	if !ok {
-		return false, false
-	}
-
-	parsed, ok := value.(bool)
-	if !ok {
-		problems.Add(path, "must be a boolean")
-		return false, false
-	}
-	return parsed, true
-}
-
-func OptionalInt(raw map[string]any, key string, path string, problems *Problems) (int, bool) {
-	value, ok := raw[key]
-	if !ok {
-		return 0, false
-	}
-
-	switch typed := value.(type) {
-	case int:
-		return typed, true
-	case int8:
-		return int(typed), true
-	case int16:
-		return int(typed), true
-	case int32:
-		return int(typed), true
-	case int64:
-		return int(typed), true
-	case uint:
-		return int(typed), true
-	case uint8:
-		return int(typed), true
-	case uint16:
-		return int(typed), true
-	case uint32:
-		return int(typed), true
-	case uint64:
-		if typed > uint64(^uint(0)>>1) {
-			problems.Add(path, "must fit in int")
-			return 0, false
+	for _, path := range metadata.Unused {
+		if _, ok := ignorePaths[path]; ok {
+			continue
 		}
-		return int(typed), true
-	default:
-		problems.Add(path, "must be an integer")
-		return 0, false
-	}
-}
-
-func OptionalStringSlice(raw map[string]any, key string, path string, problems *Problems) ([]string, bool) {
-	value, ok := raw[key]
-	if !ok {
-		return nil, false
-	}
-
-	switch values := value.(type) {
-	case []string:
-		return values, true
-	case []any:
-		out := make([]string, 0, len(values))
-		for index, item := range values {
-			str, ok := item.(string)
-			if !ok {
-				problems.Add(path+"["+strconv.Itoa(index)+"]", "must be a string")
-				return nil, false
-			}
-			out = append(out, str)
-		}
-		return out, true
-	default:
-		problems.Add(path, "must be an array of strings")
-		return nil, false
+		problems.Add(path, "unknown field")
 	}
 }
 
@@ -168,12 +90,48 @@ func ValidatePort(port int, path string, problems *Problems) {
 	}
 }
 
+func ValidateDuration(value time.Duration, path string, problems *Problems) {
+	if value < 0 {
+		problems.Add(path, "must be greater than or equal to 0")
+	}
+}
+
 func TrimStringSlice(values []string) []string {
 	out := make([]string, 0, len(values))
 	for _, value := range values {
 		out = append(out, strings.TrimSpace(value))
 	}
 	return out
+}
+
+func LookupPath(root map[string]any, path string) (any, error) {
+	normalized := strings.TrimSpace(path)
+	normalized = strings.TrimPrefix(normalized, ".")
+	if normalized == "" {
+		return nil, fmt.Errorf("config section must not be empty")
+	}
+
+	parts := strings.Split(normalized, ".")
+	current := any(root)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, fmt.Errorf("invalid config section %q", path)
+		}
+
+		table, ok := current.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("config section %q is not a table path", path)
+		}
+
+		next, ok := table[part]
+		if !ok {
+			return nil, fmt.Errorf("config section %q not found", path)
+		}
+		current = next
+	}
+
+	return current, nil
 }
 
 func OrderedKeys(values map[string]struct{}) []string {

@@ -7,7 +7,7 @@ import (
 )
 
 type AppConfig struct {
-	Instances map[string]InstanceConfig
+	Instances map[string]InstanceConfig `toml:",remain"`
 }
 
 type InstanceConfig struct {
@@ -23,37 +23,8 @@ func DefaultAppConfig() AppConfig {
 	}
 }
 
-func DecodeAppConfig(raw map[string]any, problems *configparse.Problems) AppConfig {
-	cfg := DefaultAppConfig()
-
-	for name, value := range raw {
-		table, ok := configparse.AsTable(value)
-		if !ok {
-			problems.Add("redis."+name, "must be a table")
-			continue
-		}
-
-		instance := InstanceConfig{}
-		for key := range table {
-			switch key {
-			case "addr", "port", "password", "db":
-			default:
-				problems.Add("redis."+name+"."+key, "unknown field")
-			}
-		}
-		if value, ok := configparse.OptionalString(table, "addr", "redis."+name+".addr", problems); ok {
-			instance.Addr = strings.TrimSpace(value)
-		}
-		if value, ok := configparse.OptionalInt(table, "port", "redis."+name+".port", problems); ok {
-			instance.Port = value
-		}
-		if value, ok := configparse.OptionalString(table, "password", "redis."+name+".password", problems); ok {
-			instance.Password = value
-		}
-		if value, ok := configparse.OptionalInt(table, "db", "redis."+name+".db", problems); ok {
-			instance.DB = value
-		}
-
+func (c AppConfig) Validate(problems *configparse.Problems) {
+	for name, instance := range c.Instances {
 		if strings.TrimSpace(instance.Addr) == "" {
 			problems.Add("redis."+name+".addr", "is required")
 		}
@@ -61,9 +32,5 @@ func DecodeAppConfig(raw map[string]any, problems *configparse.Problems) AppConf
 		if instance.DB < 0 {
 			problems.Add("redis."+name+".db", "must be greater than or equal to 0")
 		}
-
-		cfg.Instances[name] = instance
 	}
-
-	return cfg
 }
