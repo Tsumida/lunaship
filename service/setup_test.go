@@ -1,12 +1,53 @@
 package service
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tsumida/lunaship/config"
+	"github.com/tsumida/lunaship/module"
 )
+
+func TestBuildDefaultInitModules(t *testing.T) {
+	t.Run("flow: default bootstrap modules sort into the expected runtime order", func(t *testing.T) {
+		// Description: service bootstrap registers the built-in modules in declaration order with explicit dependencies.
+		// Procedure: Build the module list and run the shared topological sorter.
+		// Expectation: the resolved order should match the intended bootstrap flow from config through pprof.
+		ordered, err := module.Sort(buildDefaultInitModules(&bootstrapState{cfgPath: "config/app.toml"})...)
+
+		assert.NoError(t, err, "default bootstrap graph should be valid")
+		assert.Equal(t, []string{
+			bootstrapModuleConfig,
+			bootstrapModuleRuntimeMetadata,
+			bootstrapModuleLog,
+			bootstrapModuleTracing,
+			bootstrapModuleRedis,
+			bootstrapModuleMySQL,
+			bootstrapModuleKafka,
+			bootstrapModulePprof,
+		}, moduleNames(ordered), "default modules should sort into the expected startup order")
+	})
+
+	t.Run("flow: injected modules can depend on built-in bootstrap stages", func(t *testing.T) {
+		// Description: a caller injects a custom module that requires mysql to be ready first.
+		// Procedure: Append an extra module to the default graph and resolve the order.
+		// Expectation: the injected module should appear after mysql without needing manual position management.
+		modules := append(
+			buildDefaultInitModules(&bootstrapState{cfgPath: "config/app.toml"}),
+			module.NewModuleWrapper("custom-cache", "init custom cache", func(ctx context.Context) error {
+				return nil
+			}, bootstrapModuleMySQL),
+		)
+
+		ordered, err := module.Sort(modules...)
+
+		assert.NoError(t, err, "graph with injected module should remain valid")
+		names := moduleNames(ordered)
+		assert.Greater(t, indexOf(names, "custom-cache"), indexOf(names, bootstrapModuleMySQL), "injected module should run after its mysql dependency")
+	})
+}
 
 func TestSelectBootstrapInstance(t *testing.T) {
 	t.Run("flow: default instance is preferred when multiple instances exist", func(t *testing.T) {
@@ -122,4 +163,24 @@ func TestApplyRuntimeMetadata(t *testing.T) {
 		assert.Equal(t, "metrics-service", os.Getenv("SERVICE_ID"), "explicit service id override should be preserved")
 		assert.Equal(t, "logs-demo", os.Getenv("OTEL_SERVICE_NAME"), "otel service name should default to app name when unset")
 	})
+}
+
+func moduleNames(modules []module.Module) []string {
+	names := make([]string, 0, len(modules))
+	for _, current := range modules {
+		name, _ := current.Description()
+		names = append(names, name)
+	}
+
+	return names
+}
+
+func indexOf(values []string, target string) int {
+	for index, value := range values {
+		if value == target {
+			return index
+		}
+	}
+
+	return -1
 }

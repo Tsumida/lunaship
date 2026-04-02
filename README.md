@@ -14,7 +14,7 @@ Lunaship use `connect-go` as RPC framework.
 - `log/`: Log initialization and related utils.
 - `mysql/`: MySQL initialization, client and logger. 
 - `redis/`: Redis client, logger and related utils.
-- `setup/`: Lunaship service entrance. Every service should call `svc.RunAfterInit()` to setup the server. 
+- `setup/`: Lunaship service entrance. Every service should call `svc.Run()` to setup the server. 
 - `spec/`: Specification driven development for vide coding. 
 - `tests/: Integration tests for lunaship, including test cases and test data.
 
