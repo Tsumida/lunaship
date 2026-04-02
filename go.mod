@@ -6,8 +6,8 @@ require (
 	connectrpc.com/connect v1.19.1
 	github.com/IBM/sarama v1.46.3
 	github.com/go-viper/mapstructure/v2 v2.2.1
-	github.com/pkg/errors v0.9.1
 	github.com/pelletier/go-toml/v2 v2.2.3
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/net v0.51.0
@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
