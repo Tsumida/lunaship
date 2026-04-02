@@ -2,31 +2,22 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"time"
+	"path/filepath"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/tsumida/lunaship/example/logs/gen/logsv1connect"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
-	"github.com/tsumida/lunaship/mysql"
-	"github.com/tsumida/lunaship/redis"
 	"github.com/tsumida/lunaship/service"
 	"github.com/tsumida/lunaship/utils"
-	"gorm.io/gorm"
 )
 
 func main() {
-	if os.Getenv("LOG_FILE") == "" {
-		_ = os.Setenv("LOG_FILE", "./tmp/log.log")
-	}
-	if os.Getenv("ERR_FILE") == "" {
-		_ = os.Setenv("ERR_FILE", "./tmp/err.log")
-	}
+	ensureAppConfigPath()
+
 	bindAddr := utils.StrOrDefault(os.Getenv("BIND_ADDR"), ":8080")
-	mysqlConf := mysql.LoadMySQLConfFromEnv(false)
-	redisConf := redis.LoadRedisConfigFromEnv()
 
 	path, handler := logsv1connect.NewDummyServiceHandler(
 		NewDummyService(),
@@ -44,27 +35,22 @@ func main() {
 		BindingAddress: bindAddr,
 	}
 
-	s.RunAfterInit(context.Background(), 10*time.Second,
-		func() error {
-			infra.InitMetricAsync(infra.PROMETHEUS_LISTEN_ADDR)
-			return nil
-		},
-		func() error {
-			if err := mysql.InitMySQL(
-				mysqlConf,
-				gorm.Config{
-					Logger: mysql.NewMySQLGormLogger(mysqlConf),
-				},
-				func(db *gorm.DB) error {
-					if db == nil {
-						return fmt.Errorf("nil mysql db")
-					}
-					return nil
-				},
-			); err != nil {
-				return err
-			}
-			return redis.InitRedis(context.Background(), redisConf, time.Second, 2)
-		},
-	)
+	s.Run(context.Background())
+}
+
+func ensureAppConfigPath() {
+	if strings.TrimSpace(os.Getenv("APP_CONFIG_PATH")) != "" {
+		return
+	}
+
+	candidates := []string{
+		filepath.Join("config", "app.toml"),
+		filepath.Join("example", "logs", "config", "app.toml"),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			_ = os.Setenv("APP_CONFIG_PATH", candidate)
+			return
+		}
+	}
 }

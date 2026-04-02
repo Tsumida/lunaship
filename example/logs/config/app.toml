@@ -1,0 +1,32 @@
+[app]
+app_name = "logs-demo"
+
+[app.log]
+level = "info"
+
+[app.trace]
+enabled = true
+otel_exporter_otlp_endpoint = "http://127.0.0.1:4318"
+otel_exporter_otlp_protocol = "http"
+
+[app.pprof]
+enabled = true
+mode = "dynamic"
+
+[redis.default]
+addr = "127.0.0.1"
+port = 6379
+db = 0
+
+[mysql]
+max_open_conns = 200
+max_idle_conns = 100
+max_idle_time = "30s"
+
+[mysql.default]
+host = "127.0.0.1"
+port = 3306
+username = "root"
+password = "helloworld"
+database = "test"
+ping_enabled = true

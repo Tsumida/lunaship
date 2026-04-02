@@ -1,3 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logs-demo-app-config
+  namespace: test
+data:
+  app.toml: |
+    [app]
+    app_name = "logs-demo"
+
+    [app.log]
+    level = "info"
+
+    [app.trace]
+    enabled = true
+    otel_exporter_otlp_endpoint = "http://jaeger-remote.test.svc.cluster.local:4318"
+    otel_exporter_otlp_protocol = "http"
+
+    [app.pprof]
+    enabled = true
+    mode = "dynamic"
+
+    [redis.default]
+    addr = "192.168.0.120"
+    port = 6379
+    db = 0
+
+    [mysql]
+    max_open_conns = 200
+    max_idle_conns = 100
+    max_idle_time = "30s"
+
+    [mysql.default]
+    host = "192.168.0.120"
+    port = 3306
+    username = "root"
+    password = "helloworld"
+    database = "test"
+    ping_enabled = true
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,42 +80,22 @@ spec:
               value: ":9090"
             - name: PPROF_LISTEN_ADDR
               value: ":6060"
-            - name: TRACE_ENABLED
-              value: "true"
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger-remote.test.svc.cluster.local:4318"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
-            - name: OTEL_SERVICE_NAME
-              value: "logs-demo-a"
-            - name: JAEGER_SAMPLER_TYPE
-              value: "const"
-            - name: JAEGER_SAMPLER_RATE
-              value: "1"
             - name: SERVICE_ID
-              value: "logs-demo-a"
-            - name: APP_NAME
               value: "logs-demo-a"
             - name: LOG_FILE
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
-            - name: MYSQL_HOST
-              value: "192.168.0.120"
-            - name: MYSQL_PORT
-              value: "3306"
-            - name: MYSQL_USER
-              value: "root"
-            - name: MYSQL_PASSWORD
-              value: "helloworld"
-            - name: MYSQL_DATABASE
-              value: "test"
-            - name: REDIS_ADDR
-              value: "192.168.0.120:6379"
           volumeMounts:
+            - name: app-config
+              mountPath: /app/config
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: app-config
+          configMap:
+            name: logs-demo-app-config
         - name: tmp
           emptyDir: {}
 ---
@@ -148,42 +168,22 @@ spec:
               value: ":9090"
             - name: PPROF_LISTEN_ADDR
               value: ":6060"
-            - name: TRACE_ENABLED
-              value: "true"
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger-remote.test.svc.cluster.local:4318"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
-            - name: OTEL_SERVICE_NAME
-              value: "logs-demo-b"
-            - name: JAEGER_SAMPLER_TYPE
-              value: "const"
-            - name: JAEGER_SAMPLER_RATE
-              value: "1"
             - name: SERVICE_ID
-              value: "logs-demo-b"
-            - name: APP_NAME
               value: "logs-demo-b"
             - name: LOG_FILE
               value: "/tmp/log.log"
             - name: ERR_FILE
               value: "/tmp/err.log"
-            - name: MYSQL_HOST
-              value: "192.168.0.120"
-            - name: MYSQL_PORT
-              value: "3306"
-            - name: MYSQL_USER
-              value: "root"
-            - name: MYSQL_PASSWORD
-              value: "helloworld"
-            - name: MYSQL_DATABASE
-              value: "test"
-            - name: REDIS_ADDR
-              value: "192.168.0.120:6379"
           volumeMounts:
+            - name: app-config
+              mountPath: /app/config
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: app-config
+          configMap:
+            name: logs-demo-app-config
         - name: tmp
           emptyDir: {}
 ---
