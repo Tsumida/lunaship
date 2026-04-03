@@ -67,6 +67,7 @@ const (
 	bootstrapModuleMySQL           = "mysql"
 	bootstrapModuleKafka           = "kafka"
 	bootstrapModulePprof           = "pprof"
+	bootstrapModuleMetrics         = "metrics"
 )
 
 type bootstrapState struct {
@@ -194,6 +195,15 @@ func buildDefaultInitModules(state *bootstrapState) []module.Module {
 				return initKafka(state.cfg)
 			},
 			bootstrapModuleConfig,
+			bootstrapModuleLog,
+		),
+		module.NewModuleWrapper(
+			bootstrapModuleMetrics,
+			"Init metrics",
+			func(ctx context.Context) error {
+				infra.InitMetricAsync(infra.PROMETHEUS_LISTEN_ADDR)
+				return nil
+			},
 			bootstrapModuleLog,
 		),
 		module.NewModuleWrapper(

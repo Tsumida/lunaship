@@ -14,7 +14,7 @@ func TestBuildDefaultInitModules(t *testing.T) {
 	t.Run("flow: default bootstrap modules sort into the expected runtime order", func(t *testing.T) {
 		// Description: service bootstrap registers the built-in modules in declaration order with explicit dependencies.
 		// Procedure: Build the module list and run the shared topological sorter.
-		// Expectation: the resolved order should match the intended bootstrap flow from config through pprof.
+		// Expectation: the resolved order should match the intended bootstrap flow from config through metrics and pprof.
 		ordered, err := module.Sort(buildDefaultInitModules(&bootstrapState{cfgPath: "config/app.toml"})...)
 
 		assert.NoError(t, err, "default bootstrap graph should be valid")
@@ -26,6 +26,7 @@ func TestBuildDefaultInitModules(t *testing.T) {
 			bootstrapModuleRedis,
 			bootstrapModuleMySQL,
 			bootstrapModuleKafka,
+			bootstrapModuleMetrics,
 			bootstrapModulePprof,
 		}, moduleNames(ordered), "default modules should sort into the expected startup order")
 	})
