@@ -56,6 +56,7 @@ blocked_list = ["user1", "user2"]
 		assert.Equal(t, defaultLogLevel, cfg.App.Log.Level, "log level should default to info")
 		assert.Equal(t, defaultTraceEnabled, cfg.App.Trace.Enabled, "trace enabled should default to false")
 		assert.Equal(t, defaultTraceProtocol, cfg.App.Trace.OTLPExporterOTLPProtocol, "trace protocol should default to http")
+		assert.Equal(t, defaultTraceSampleRate, cfg.App.Trace.SampleRate, "trace sample rate should default to 0.001")
 		assert.Equal(t, defaultPprofMode, cfg.App.Pprof.Mode, "pprof mode should default to dynamic")
 		assert.Equal(t, defaultPprofEnabled, cfg.App.Pprof.Enabled, "pprof enabled should default to true")
 
@@ -87,6 +88,51 @@ blocked_list = ["user1", "user2"]
 		assert.NoError(t, err, "custom config should decode from retained raw section tree")
 		assert.Equal(t, "value1", customCfg.Key1, "custom key1 should match TOML")
 		assert.Equal(t, []string{"user1", "user2"}, customCfg.BlockedList, "custom list should match TOML")
+	})
+
+	t.Run("flow: trace sample_rate is parsed and validated", func(t *testing.T) {
+		// Description: app config sets a trace sampling ratio to reduce exported spans.
+		// Expectation: loader keeps the provided ratio and rejects values outside the supported precision/range.
+		cfg, err := LoadFromBytes([]byte(`
+[app]
+app_name = "logs-demo"
+
+[app.trace]
+sample_rate = 0.125
+`))
+		assert.NoError(t, err, "valid sample rate should load successfully")
+		if !assert.NotNil(t, cfg, "loader should return config for valid sample rate") {
+			return
+		}
+
+		assert.Equal(t, 0.125, cfg.App.Trace.SampleRate, "sample rate should keep the configured ratio")
+
+		_, err = LoadFromBytes([]byte(`
+[app]
+app_name = "logs-demo"
+
+[app.trace]
+sample_rate = 0.0009
+`))
+		var loadErr *LoadError
+		assert.Error(t, err, "out-of-range sample rate should fail validation")
+		assert.True(t, errors.As(err, &loadErr), "validation failure should unwrap to LoadError")
+		if assert.NotNil(t, loadErr, "validation failure should produce LoadError") {
+			assert.Contains(t, loadErr.Details, ErrorDetail{Path: "app.trace.sample_rate", Message: "must be between 0.001 and 1.0"}, "range violation should be reported")
+		}
+
+		_, err = LoadFromBytes([]byte(`
+[app]
+app_name = "logs-demo"
+
+[app.trace]
+sample_rate = 0.1234
+`))
+		assert.Error(t, err, "sample rate with too many decimal places should fail validation")
+		assert.True(t, errors.As(err, &loadErr), "precision failure should unwrap to LoadError")
+		if assert.NotNil(t, loadErr, "precision failure should produce LoadError") {
+			assert.Contains(t, loadErr.Details, ErrorDetail{Path: "app.trace.sample_rate", Message: "must use at most 3 decimal places"}, "precision violation should be reported")
+		}
 	})
 
 	t.Run("flow: malformed toml returns parse error", func(t *testing.T) {

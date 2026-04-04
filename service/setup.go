@@ -330,14 +330,19 @@ func traceConfigFromAppConfig(cfg *config.AppConfig) infra.TraceConfig {
 		protocol = "http/protobuf"
 	}
 
+	sampleRate := cfg.App.Trace.SampleRate
+	if sampleRate <= 0 {
+		sampleRate = 0.001
+	}
+
 	return infra.TraceConfig{
 		Enabled:            cfg.App.Trace.Enabled,
 		ServiceName:        cfg.App.AppName,
 		OTLPEndpoint:       traceEndpoint,
 		OTLPProtocol:       protocol,
 		OTLPTracesEndpoint: usesTraceEndpoint,
-		SamplerType:        "const",
-		SamplerRate:        1,
+		SamplerType:        "ratio",
+		SamplerRate:        sampleRate,
 	}
 }
 
