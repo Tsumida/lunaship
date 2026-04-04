@@ -2,17 +2,19 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/tsumida/lunaship/configparse"
 )
 
 const (
-	defaultLogLevel      = "info"
-	defaultTraceEnabled  = false
-	defaultTraceProtocol = "http"
-	defaultPprofEnabled  = true
-	defaultPprofMode     = "dynamic"
+	defaultLogLevel        = "info"
+	defaultTraceEnabled    = false
+	defaultTraceProtocol   = "http"
+	defaultTraceSampleRate = 0.001
+	defaultPprofEnabled    = true
+	defaultPprofMode       = "dynamic"
 )
 
 var (
@@ -40,10 +42,11 @@ type AppLogConfig struct {
 }
 
 type AppTraceConfig struct {
-	Enabled                       bool   `toml:"enabled"`
-	OTLPExporterOTLPEndpoint      string `toml:"otel_exporter_otlp_endpoint"`
-	OTLPExporterOTLPProtocol      string `toml:"otel_exporter_otlp_protocol"`
-	OTelResourceOTLPTraceEndpoint string `toml:"otel_resource_otlp_trace_endpoint"`
+	Enabled                       bool    `toml:"enabled"`
+	OTLPExporterOTLPEndpoint      string  `toml:"otel_exporter_otlp_endpoint"`
+	OTLPExporterOTLPProtocol      string  `toml:"otel_exporter_otlp_protocol"`
+	OTelResourceOTLPTraceEndpoint string  `toml:"otel_resource_otlp_trace_endpoint"`
+	SampleRate                    float64 `toml:"sample_rate"`
 }
 
 type AppPprofConfig struct {
@@ -59,6 +62,7 @@ func defaultAppSection() AppSection {
 		Trace: AppTraceConfig{
 			Enabled:                  defaultTraceEnabled,
 			OTLPExporterOTLPProtocol: defaultTraceProtocol,
+			SampleRate:               defaultTraceSampleRate,
 		},
 		Pprof: AppPprofConfig{
 			Mode:    defaultPprofMode,
@@ -93,8 +97,18 @@ func (c AppSection) Validate(problems *configparse.Problems) {
 		problems.Add("app.trace.otel_exporter_otlp_protocol", `must be "http" in v1`)
 	}
 
+	if c.Trace.SampleRate < defaultTraceSampleRate || c.Trace.SampleRate > 1 {
+		problems.Add("app.trace.sample_rate", "must be between 0.001 and 1.0")
+	} else if !hasThreeDecimalPrecision(c.Trace.SampleRate) {
+		problems.Add("app.trace.sample_rate", "must use at most 3 decimal places")
+	}
+
 	mode := strings.ToLower(strings.TrimSpace(c.Pprof.Mode))
 	if _, ok := validPprofModes[mode]; !ok {
 		problems.Add("app.pprof.mode", fmt.Sprintf("must be one of %q", configparse.OrderedKeys(validPprofModes)))
 	}
+}
+
+func hasThreeDecimalPrecision(value float64) bool {
+	return math.Abs(value*1000-math.Round(value*1000)) < 1e-9
 }

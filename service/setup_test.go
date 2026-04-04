@@ -106,7 +106,7 @@ func TestSelectBootstrapInstance(t *testing.T) {
 func TestTraceConfigFromAppConfig(t *testing.T) {
 	t.Run("flow: dedicated traces endpoint wins over exporter endpoint", func(t *testing.T) {
 		// Description: app config provides both a shared exporter endpoint and a traces-specific endpoint.
-		// Expectation: svc.Run should use the traces endpoint and mark it as a traces-specific URL.
+		// Expectation: svc.Run should use the traces endpoint, keep the sampling ratio, and mark it as a traces-specific URL.
 		cfg := &config.AppConfig{
 			App: config.AppSection{
 				AppName: "logs-demo",
@@ -115,6 +115,7 @@ func TestTraceConfigFromAppConfig(t *testing.T) {
 					OTLPExporterOTLPEndpoint:      "otel.example:4318",
 					OTLPExporterOTLPProtocol:      "http",
 					OTelResourceOTLPTraceEndpoint: "http://collector.example:4318/v1/traces",
+					SampleRate:                    0.125,
 				},
 			},
 		}
@@ -125,11 +126,13 @@ func TestTraceConfigFromAppConfig(t *testing.T) {
 		assert.Equal(t, "http://collector.example:4318/v1/traces", traceCfg.OTLPEndpoint, "traces endpoint should win when configured")
 		assert.True(t, traceCfg.OTLPTracesEndpoint, "dedicated traces endpoint should be marked explicitly")
 		assert.Equal(t, "http/protobuf", traceCfg.OTLPProtocol, "http should be normalized to the SDK protocol value")
+		assert.Equal(t, "ratio", traceCfg.SamplerType, "app config should use ratio-based sampling")
+		assert.Equal(t, 0.125, traceCfg.SamplerRate, "trace sampler rate should come from app.trace.sample_rate")
 	})
 
 	t.Run("flow: exporter endpoint is used when traces endpoint is absent", func(t *testing.T) {
 		// Description: app config only provides the shared exporter endpoint.
-		// Expectation: svc.Run should keep using the shared endpoint and let the trace layer append /v1/traces.
+		// Expectation: svc.Run should keep using the shared endpoint, let the trace layer append /v1/traces, and fall back to the default sample rate.
 		cfg := &config.AppConfig{
 			App: config.AppSection{
 				AppName: "logs-demo",
@@ -144,6 +147,8 @@ func TestTraceConfigFromAppConfig(t *testing.T) {
 		assert.Equal(t, "otel.example:4318", traceCfg.OTLPEndpoint, "shared exporter endpoint should be used when no traces URL is configured")
 		assert.False(t, traceCfg.OTLPTracesEndpoint, "shared exporter endpoint should not be treated as a traces-specific URL")
 		assert.Equal(t, "http/protobuf", traceCfg.OTLPProtocol, "empty protocol should fall back to the SDK default")
+		assert.Equal(t, "ratio", traceCfg.SamplerType, "app config should always use ratio-based sampling")
+		assert.Equal(t, 0.001, traceCfg.SamplerRate, "missing sample rate should fall back to the documented default")
 	})
 }
 
